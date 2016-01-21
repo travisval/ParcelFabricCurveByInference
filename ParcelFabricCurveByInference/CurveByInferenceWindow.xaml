@@ -1,0 +1,91 @@
+﻿<UserControl x:Class="ParcelFabricCurveByInference.CurveByInferenceWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:l="clr-namespace:ParcelFabricCurveByInference"
+    Height="300" Width="300">
+    <Grid>
+        <DockPanel>
+            <StackPanel DockPanel.Dock="Top" Name="PropertiesDebug" Orientation="Vertical" Visibility="{Binding SettingVisibility}" Margin="5" Grid.IsSharedSizeScope="True">
+                <TextBlock Text="None default values in use:" Background="Red"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="Name"></ColumnDefinition>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="Value"></ColumnDefinition>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="AngleToleranceTangentCompareInDegrees:" Margin="2" TextAlignment="Right"/>
+                    <TextBox Grid.Column="1" Text="{Binding AngleToleranceTangentCompareInDegrees}" Margin="2" />
+                </Grid>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="Name"></ColumnDefinition>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="Value"></ColumnDefinition>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="StraightLinesBreakLessThanInDegrees:" Margin="2" TextAlignment="Right"/>
+                    <TextBox Grid.Column="1" Text="{Binding StraightLinesBreakLessThanInDegrees}" Margin="2" />
+                </Grid>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="Name"></ColumnDefinition>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="Value"></ColumnDefinition>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="MaximumDeltaInDegrees:" Margin="2" TextAlignment="Right"/>
+                    <TextBox Grid.Column="1" Text="{Binding MaximumDeltaInDegrees}" Margin="2" />
+                </Grid>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="Name"></ColumnDefinition>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="Value"></ColumnDefinition>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="ExcludeTangentsShorterThanScaler:" Margin="2" TextAlignment="Right"/>
+                    <TextBox Grid.Column="1" Text="{Binding ExcludeTangentsShorterThanScaler}" Margin="2" />
+                </Grid>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="Name"></ColumnDefinition>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="Value"></ColumnDefinition>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="OrthogonalSearchDistance:" Margin="2" TextAlignment="Right"/>
+                    <TextBox Grid.Column="1" Text="{Binding OrthogonalSearchDistance}" Margin="2" />
+                </Grid>
+            </StackPanel>
+            <Grid VerticalAlignment="Stretch">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"></RowDefinition>
+                    <RowDefinition Height="30"></RowDefinition>
+                </Grid.RowDefinitions>
+                <TreeView Grid.Row="0" Margin="2" ItemsSource="{Binding Curves}">
+                    <TreeView.Resources>
+                        <DataTemplate DataType="{x:Type l:InferredCurve}">
+                            <TreeViewItem>
+                                <TreeViewItem.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Flash Feature" Click="Flash_Click" CommandParameter="{Binding}"></MenuItem>
+                                        <MenuItem Header="Zoom to Feature" Click="ZoomTo_Click" CommandParameter="{Binding}"></MenuItem>
+                                        <MenuItem Header="Zoom to Related Features" Click="ZoomToRelated_Click" CommandParameter="{Binding}"></MenuItem>
+                                        <MenuItem Header="Select Related Features" Click="SelectRelated_Click" CommandParameter="{Binding}"></MenuItem>
+                                    </ContextMenu>
+                                </TreeViewItem.ContextMenu>
+                                <TreeViewItem.Header>
+                                    <TextBlock Text="{Binding Header}" Foreground="{Binding ItemColor}" />
+                                </TreeViewItem.Header>
+                                <TreeViewItem Header="{Binding Description}"/>
+                                <TreeViewItem Header="{Binding Accepted.Radius}" Visibility="{Binding SetVisibility}"/>
+                                <TreeViewItem Header="{Binding Accepted.CenterpointID}" Visibility="{Binding SetVisibility}"/>
+                                <TreeViewItem Header="Tangents" ItemsSource="{Binding TangentCurves}" Visibility="{Binding TangentVisibility}"/>
+                                <TreeViewItem Header="Parallels" ItemsSource="{Binding ParallelCurves}" Visibility="{Binding ParallelVisibility}"/>
+                            </TreeViewItem>
+                        </DataTemplate>
+                        <DataTemplate DataType="{x:Type l:RelatedCurve}">
+                            <TreeViewItem Header="{Binding Header}">
+                            </TreeViewItem>
+                        </DataTemplate>
+                    </TreeView.Resources>
+                </TreeView>
+                <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Margin="2" Width="80" Click="Find_Click" IsEnabled="{Binding Finished}">Find Rows</Button>
+                    <Button Margin="2" Width="80" Click="Update_Click" IsEnabled="{Binding Finished}">Update Rows</Button>
+                </StackPanel>
+            </Grid>
+        </DockPanel>
+    </Grid>
+</UserControl>

@@ -1,0 +1,9 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<CurveByInferenceSettings>
+  <DisplaySettings>true</DisplaySettings>
+  <AngleToleranceTangentCompareInDegrees>1.5</AngleToleranceTangentCompareInDegrees>
+  <StraightLinesBreakLessThanInDegrees>0.033</StraightLinesBreakLessThanInDegrees>
+  <MaximumDeltaInDegrees>1</MaximumDeltaInDegrees>
+  <ExcludeTangentsShorterThanScaler>1.1</ExcludeTangentsShorterThanScaler>
+  <OrthogonalSearchDistance>70</OrthogonalSearchDistance>
+</CurveByInferenceSettings>
