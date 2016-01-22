@@ -154,7 +154,7 @@ namespace ParcelFabricCurveByInference
                         
                         while ((row = (IRow)lineSet.Next()) != null)
                         {
-                            selectionSet.Add(row.OID);
+                            relatedSelectionSet.Add(row.OID);
                             Marshal.ReleaseComObject(row);
                         }
                         Marshal.ReleaseComObject(lineSet);
