@@ -74,7 +74,7 @@ namespace ParcelFabricCurveByInferenceTest
 
             HashSet<int> parcelHash = new HashSet<int>();
 
-            CurveByInference curveByInference = new CurveByInference();
+            CurveByInference curveByInference = new CurveByInference() { messageBox = new MyMessageBox() };
             curveByInference.FindCurves("test", featureClass, null, null, parcelHash, idxRADIUS, idxCENTERPTID, idxParcelIDFld, new myProgessor());
 
             return curveByInference;

@@ -23,6 +23,8 @@ namespace ParcelFabricCurveByInference
     {
         public ObservableCollection<InferredCurve> Curves { get; private set; }
 
+        public MyMessageBox messageBox = new FormsMessageBox();
+
         bool _Finished;
         public bool Finished { get { return _Finished; } set { _Finished = value; RaisePropertyChanged("Finished"); } }
         
@@ -48,7 +50,7 @@ namespace ParcelFabricCurveByInference
             {
                 if (m_pEd.EditState == esriEditState.esriStateNotEditing)
                 {
-                    ShowError("Please start editing first, and try again.");
+                    messageBox.Show("Please start editing first, and try again.");
                     return;
                 }
                 pMap = m_pEd.Map;
@@ -68,7 +70,7 @@ namespace ParcelFabricCurveByInference
             ICadastralPacketManager pCadPacMan = (ICadastralPacketManager)pCadExtMan;
             if (pCadPacMan.PacketOpen)
             {
-                ShowError("The command cannot be used when there is an open job.\r\nPlease finish or discard the open job, and try again.");
+                messageBox.Show("The command cannot be used when there is an open job.\r\nPlease finish or discard the open job, and try again.");
                 return;
             }
             
@@ -86,12 +88,12 @@ namespace ParcelFabricCurveByInference
                 var CFLayers = GetFabricLayers(pMap);
                 if(CFLayers.Count == 0)
                 {
-                    ShowError("No cadastral fabric layers found in the current map.");
+                    messageBox.Show("No cadastral fabric layers found in the current map.");
                     return;
                 }
                 if (CFLayers.Count > 1)
                 {
-                    ShowError("Multiple cadastral fabric layers found in the current map.");
+                    messageBox.Show("Multiple cadastral fabric layers found in the current map.");
                     return;
                 }
                 ICadastralFabricLayer CFLayer = CFLayers.First();
@@ -109,7 +111,7 @@ namespace ParcelFabricCurveByInference
                     int idxRADIUS = CFLineLayer.FeatureClass.Fields.FindField("Radius");
                     if (idxParcelIDFld == -1 || idxCENTERPTID == -1 || idxRADIUS == -1)
                     {
-                        ShowError("One or more of the following fields are missing (ParcelID, CenterPointID, Radius).");
+                        messageBox.Show("One or more of the following fields are missing (ParcelID, CenterPointID, Radius).");
                         return;
                     }
                     
@@ -171,7 +173,7 @@ namespace ParcelFabricCurveByInference
                     
                     else
                     {
-                        if (DialogResult.OK != MessageBox.Show("You are about to run the add-in on the entire feature class, this could take a long time.  Proceeed?", "Long Operation", MessageBoxButtons.OKCancel))
+                        if (DialogResult.OK != messageBox.Show("You are about to run the add-in on the entire feature class, this could take a long time.  Proceeed?", "Long Operation", MessageBoxButtons.OKCancel))
                             return;
                     }
 
@@ -180,7 +182,7 @@ namespace ParcelFabricCurveByInference
 
                     if (Curves.Count == 0)
                     {
-                        ShowError("No inferred curved lines found.");
+                        messageBox.Show("No inferred curved lines found.");
                         return;
                     }
 
@@ -190,7 +192,7 @@ namespace ParcelFabricCurveByInference
                 }
                 catch (Exception ex)
                 {
-                    ShowError(ex.Message);
+                    messageBox.Show(ex.Message);
                     if (m_pEd != null && m_pEd.HasEdits())
                     {
                         m_pEd.AbortOperation();
@@ -320,7 +322,7 @@ namespace ParcelFabricCurveByInference
 
             if (!SetupEditEnvironment(pWS, pCadFabric, m_pEd, out bIsFileBasedGDB, out bIsUnVersioned, out bUseNonVersionedDelete))
             {
-                ShowError("The editing environment could not be initialized");
+                messageBox.Show("The editing environment could not be initialized");
                 return;
             }
 
@@ -343,11 +345,11 @@ namespace ParcelFabricCurveByInference
                 {
                     if (ex.ErrorCode == (int)fdoError.FDO_E_CADASTRAL_FABRIC_JOB_ALREADY_EXISTS)
                     {
-                        ShowError("Job named: '" + pJob.Name + "', already exists");
+                        messageBox.Show("Job named: '" + pJob.Name + "', already exists");
                     }
                     else
                     {
-                        ShowError(ex.Message);
+                        messageBox.Show(ex.Message);
                     }
                     return;
                 }
@@ -382,12 +384,12 @@ namespace ParcelFabricCurveByInference
                     if (pCOMEx.ErrorCode == (int)fdoError.FDO_E_CADASTRAL_FABRIC_JOB_LOCK_ALREADY_EXISTS ||
                         pCOMEx.ErrorCode == (int)fdoError.FDO_E_CADASTRAL_FABRIC_JOB_CURRENTLY_EDITED)
                     {
-                        ShowError("Edit Locks could not be acquired on all selected parcels.");
+                        messageBox.Show("Edit Locks could not be acquired on all selected parcels.");
                         // since the operation is being aborted, release any locks that were acquired
                         pFabLocks.UndoLastAcquiredLocks();
                     }
                     else
-                        ShowError(pCOMEx.Message + Environment.NewLine + Convert.ToString(pCOMEx.ErrorCode));
+                        messageBox.Show(pCOMEx.Message + Environment.NewLine + Convert.ToString(pCOMEx.ErrorCode));
 
                     return;
                 }
@@ -410,7 +412,7 @@ namespace ParcelFabricCurveByInference
             {
                 if (!StartEditing(pWS, bIsUnVersioned))
                 {
-                    ShowError("Couldn't start an edit session");
+                    messageBox.Show("Couldn't start an edit session");
                     return;
                 }
             }
@@ -492,7 +494,7 @@ namespace ParcelFabricCurveByInference
             }
             if (IsUnVersioned && !IsFileBasedGDB)
             {//
-                DialogResult dlgRes = MessageBox.Show("Fabric is not registered as versioned." +
+                DialogResult dlgRes = messageBox.Show("Fabric is not registered as versioned." +
                   "\r\n You will not be able to undo." +
                   "\r\n Click 'OK' to delete permanently.",
                   "Continue with delete?", MessageBoxButtons.OKCancel);
@@ -510,8 +512,8 @@ namespace ParcelFabricCurveByInference
             }
             else if ((TheEditor.EditState == esriEditState.esriStateNotEditing))
             {
-                MessageBox.Show("Please start editing first and try again.", "Delete",
-                  MessageBoxButtons.OK, MessageBoxIcon.Information);
+                messageBox.Show("Please start editing first and try again.", "Delete",
+                  MessageBoxButtons.OK);
                 return false;
             }
             return true;
@@ -547,7 +549,7 @@ namespace ParcelFabricCurveByInference
             IWorkspaceEdit pWSEdit = (IWorkspaceEdit)TheWorkspace;
             if (pWSEdit.IsBeingEdited())
             {
-                ShowError("The workspace is being edited by another process.");
+                messageBox.Show("The workspace is being edited by another process.");
                 return false;
             }
 
@@ -572,7 +574,7 @@ namespace ParcelFabricCurveByInference
                 }
                 catch (COMException ex)
                 {
-                    MessageBox.Show(ex.Message + "  " + Convert.ToString(ex.ErrorCode), "Start Editing");
+                    messageBox.Show(ex.Message + "  " + Convert.ToString(ex.ErrorCode), "Start Editing");
                     return false;
                 }
             }
@@ -584,7 +586,7 @@ namespace ParcelFabricCurveByInference
                 }
                 catch (COMException ex)
                 {
-                    MessageBox.Show(ex.Message + "  " + Convert.ToString(ex.ErrorCode), "Start Editing");
+                    messageBox.Show(ex.Message + "  " + Convert.ToString(ex.ErrorCode), "Start Editing");
                     return false;
                 }
             }
@@ -678,7 +680,7 @@ namespace ParcelFabricCurveByInference
             }
             catch (COMException ex)
             {
-                MessageBox.Show("Problem updating circular arc: " + Convert.ToString(ex.ErrorCode));
+                messageBox.Show("Problem updating circular arc: " + Convert.ToString(ex.ErrorCode));
                 return false;
             }
         }
@@ -802,7 +804,7 @@ namespace ParcelFabricCurveByInference
             }
             catch (Exception ex)
             {
-                ShowError(ex.Message);
+                messageBox.Show(ex.Message);
                 return CurveInfoFromNeighbours;
             }
 
@@ -1019,7 +1021,7 @@ namespace ParcelFabricCurveByInference
             }
             catch (Exception ex)
             {
-                ShowError(ex.Message);
+                messageBox.Show(ex.Message);
                 return CurveInfoFromNeighbours;
             }
             IVector3D foundGeomVector = (IVector3D)new Vector3D();
@@ -1303,10 +1305,6 @@ namespace ParcelFabricCurveByInference
 
         }
 
-        public void ShowError(string message)
-        {
-            MessageBox.Show(message);
-        }
         #endregion
     }
 }
