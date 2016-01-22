@@ -88,6 +88,19 @@ namespace ParcelFabricCurveByInference
 
             return true;
         }
+
+        public override int GetHashCode()
+        {
+            int hash = ObjectID;
+            if (Accepted != null)
+                hash += Accepted.GetHashCode();
+            if (TangentCurves != null)
+                hash += TangentCurves.Sum(w => w.GetHashCode());
+            if (ParallelCurves != null)
+                hash += TangentCurves.Sum(w => w.GetHashCode());
+
+            return hash;
+        }
     }
 
 }
