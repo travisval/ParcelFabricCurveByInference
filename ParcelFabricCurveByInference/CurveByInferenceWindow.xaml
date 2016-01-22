@@ -50,10 +50,15 @@
             </StackPanel>
             <Grid VerticalAlignment="Stretch">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="20"></RowDefinition>
                     <RowDefinition Height="*"></RowDefinition>
                     <RowDefinition Height="30"></RowDefinition>
                 </Grid.RowDefinitions>
-                <TreeView Grid.Row="0" Margin="2" ItemsSource="{Binding Curves}">
+                <StackPanel Grid.Row="0" Orientation="Horizontal">
+                    <TextBlock Text="{Binding Total, StringFormat=Total: {0}}" Margin="3"/>
+                    <TextBlock Text="{Binding Inferred, StringFormat=Inferred: {0}}" Margin="3"/>
+                </StackPanel>
+                <TreeView Grid.Row="1" Margin="2" ItemsSource="{Binding Curves}">
                     <TreeView.Resources>
                         <DataTemplate DataType="{x:Type l:InferredCurve}">
                             <TreeViewItem>
@@ -63,12 +68,13 @@
                                         <MenuItem Header="Zoom to Feature" Click="ZoomTo_Click" CommandParameter="{Binding}"></MenuItem>
                                         <MenuItem Header="Zoom to Related Features" Click="ZoomToRelated_Click" CommandParameter="{Binding}"></MenuItem>
                                         <MenuItem Header="Select Related Features" Click="SelectRelated_Click" CommandParameter="{Binding}"></MenuItem>
+                                        <Separator Visibility="{Binding SetVisibility}"/>
+                                        <MenuItem Header="Apply Change" Click="ApplyChange_Click" CommandParameter="{Binding}" Visibility="{Binding SetVisibility}" IsEnabled="{Binding DataContext.isEditing, RelativeSource={RelativeSource AncestorType=TreeView}}"></MenuItem>
                                     </ContextMenu>
                                 </TreeViewItem.ContextMenu>
                                 <TreeViewItem.Header>
                                     <TextBlock Text="{Binding Header}" Foreground="{Binding ItemColor}" />
                                 </TreeViewItem.Header>
-                                <TreeViewItem Header="{Binding Description}"/>
                                 <TreeViewItem Header="{Binding Accepted.Radius}" Visibility="{Binding SetVisibility}"/>
                                 <TreeViewItem Header="{Binding Accepted.CenterpointID}" Visibility="{Binding SetVisibility}"/>
                                 <TreeViewItem Header="Tangents" ItemsSource="{Binding TangentCurves}" Visibility="{Binding TangentVisibility}"/>
@@ -81,10 +87,13 @@
                         </DataTemplate>
                     </TreeView.Resources>
                 </TreeView>
-                <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Margin="2" Width="80" Click="Find_Click" IsEnabled="{Binding Finished}">Find Rows</Button>
-                    <Button Margin="2" Width="80" Click="Update_Click" IsEnabled="{Binding Finished}">Update Rows</Button>
-                </StackPanel>
+                <DockPanel Grid.Row="2">
+                    <Button Margin="2" Width="80" Click="Clear_Click" IsEnabled="{Binding Finished}" DockPanel.Dock="Left">Clear</Button>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Margin="2" Width="80" Click="Find_Click" IsEnabled="{Binding Finished}" DockPanel.Dock="Right">Find Rows</Button>
+                        <Button Margin="2" Width="80" Click="Update_Click" IsEnabled="{Binding Finished}" DockPanel.Dock="Right">Update Rows</Button>
+                    </StackPanel>
+                </DockPanel>
             </Grid>
         </DockPanel>
     </Grid>

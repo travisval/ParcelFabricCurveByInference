@@ -3,7 +3,19 @@ Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ParcelFabricCurveByInference", "ParcelFabricCurveByInference\ParcelFabricCurveByInference.csproj", "{CF1411B0-37DF-4CE5-99BF-A95D4A973F4A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ParcelFabricCurveByInferenceTest", "ParcelFabricCurveByInferenceTest\ParcelFabricCurveByInferenceTest.csproj", "{C3748E79-6F08-4DF7-91F0-84ACEC457941}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{743CC3ED-CEE7-45A7-8D6B-499C960BE07F}"
+	ProjectSection(SolutionItems) = preProject
+		Local.testsettings = Local.testsettings
+		ParcelFabricCurveByInference.vsmdi = ParcelFabricCurveByInference.vsmdi
+		TraceAndTestImpact.testsettings = TraceAndTestImpact.testsettings
+	EndProjectSection
+EndProject
 Global
+	GlobalSection(TestCaseManagementSettings) = postSolution
+		CategoryFile = ParcelFabricCurveByInference.vsmdi
+	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
@@ -13,6 +25,10 @@ Global
 		{CF1411B0-37DF-4CE5-99BF-A95D4A973F4A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CF1411B0-37DF-4CE5-99BF-A95D4A973F4A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CF1411B0-37DF-4CE5-99BF-A95D4A973F4A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C3748E79-6F08-4DF7-91F0-84ACEC457941}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C3748E79-6F08-4DF7-91F0-84ACEC457941}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C3748E79-6F08-4DF7-91F0-84ACEC457941}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C3748E79-6F08-4DF7-91F0-84ACEC457941}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

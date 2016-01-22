@@ -34,6 +34,14 @@ namespace ParcelFabricCurveByInference
         public double OrthogonalSearchDistance { get; set; }
 
         public double dLargeAngleBreakInDegrees = 3;
+        /// <summary>
+        /// The length of the lines that are extended from either end of the query line when looking for tangents
+        /// </summary>
+        public double TangentQueryLength = 0.2;
+        /// <summary>
+        /// The size of the buffer applies to the lines that are extended from either end of the query line when looking for tangents
+        /// </summary>
+        public double TangentQueryBuffer = 0.1;
 
         private CurveByInferenceSettings()
         {

@@ -31,6 +31,9 @@ namespace ParcelFabricCurveByInference
 
             this.DataContext = new CurveByInference();
             PropertiesDebug.DataContext = CurveByInferenceSettings.Instance;
+
+            //if this window is created, make sure that the extension is as well
+            ESRI.ArcGIS.esriSystem.IExtension extension = CurveByInferenceExtension.GetExtension();
         }
 
         /// <summary>
@@ -49,6 +52,7 @@ namespace ParcelFabricCurveByInference
             {
                 m_windowUI = new System.Windows.Forms.Integration.ElementHost();
                 m_windowUI.Child = new CurveByInferenceWindow();
+
                 return m_windowUI.Handle;
             }
 
@@ -77,12 +81,23 @@ namespace ParcelFabricCurveByInference
             context.FindCurves(true);
         }
         
+        private void Clear_Click(object sender, RoutedEventArgs e)
+        {
+            CurveByInference context = new CurveByInference();
+            this.DataContext = context;
+        }
+
         private void Flash_Click(object sender, RoutedEventArgs e)
         {
             InferredCurve curve = getInferredCurveFromMenuItem(sender);
             if (curve != null)
             {
-                IFeature feature = curve.Layer.FeatureClass.GetFeature(curve.ObjectID);
+                IFeatureLayer fl = getLayerByLayerName(curve.LayerName);
+                if (fl == null)
+                    MessageBox.Show(String.Format("The layer {0} could not be found", curve.LayerName));
+
+
+                IFeature feature = fl.FeatureClass.GetFeature(curve.ObjectID);
 
                 IFeatureIdentifyObj featIdentify = new FeatureIdentifyObject();
                 featIdentify.Feature = feature;
@@ -98,7 +113,13 @@ namespace ParcelFabricCurveByInference
             InferredCurve curve = getInferredCurveFromMenuItem(sender);
             if (curve != null)
             {
-                IFeature feature = curve.Layer.FeatureClass.GetFeature(curve.ObjectID);
+                IFeatureLayer fl = getLayerByLayerName(curve.LayerName);
+                if (fl == null)
+                    MessageBox.Show(String.Format("The layer {0} could not be found", curve.LayerName));
+
+
+                IFeature feature = fl.FeatureClass.GetFeature(curve.ObjectID);
+
 
                 IEnvelope extent = feature.Shape.Envelope;
                 extent.Expand(1.2, 1.2, true);
@@ -120,18 +141,24 @@ namespace ParcelFabricCurveByInference
             InferredCurve curve = getInferredCurveFromMenuItem(sender);
             if (curve != null)
             {
-                IFeature feature = curve.Layer.FeatureClass.GetFeature(curve.ObjectID);
+                IFeatureLayer fl = getLayerByLayerName(curve.LayerName);
+                if (fl == null)
+                    MessageBox.Show(String.Format("The layer {0} could not be found", curve.LayerName));
+
+
+                IFeature feature = fl.FeatureClass.GetFeature(curve.ObjectID);
+
 
                 IEnvelope extent = feature.Shape.Envelope;
                 foreach (RelatedCurve rc in curve.ParallelCurves)
                 {
-                    IFeature relatedFeature = curve.Layer.FeatureClass.GetFeature(rc.ObjectID);
+                    IFeature relatedFeature = fl.FeatureClass.GetFeature(rc.ObjectID);
                     extent.Union(relatedFeature.Extent);
                     Marshal.ReleaseComObject(relatedFeature);
                 }
                 foreach (RelatedCurve rc in curve.TangentCurves)
                 {
-                    IFeature relatedFeature = curve.Layer.FeatureClass.GetFeature(rc.ObjectID);
+                    IFeature relatedFeature = fl.FeatureClass.GetFeature(rc.ObjectID);
                     extent.Union(relatedFeature.Extent);
                     Marshal.ReleaseComObject(relatedFeature);
                 }
@@ -149,23 +176,27 @@ namespace ParcelFabricCurveByInference
             InferredCurve curve = getInferredCurveFromMenuItem(sender);
             if (curve != null)
             {
+                IFeatureLayer fl = getLayerByLayerName(curve.LayerName);
+                if (fl == null)
+                    MessageBox.Show(String.Format("The layer {0} could not be found", curve.LayerName));
+                
                 ArcMap.Document.FocusMap.ClearSelection();
 
-                IFeature feature = curve.Layer.FeatureClass.GetFeature(curve.ObjectID);
-                ArcMap.Document.FocusMap.SelectFeature(curve.Layer, feature);
+                IFeature feature = fl.FeatureClass.GetFeature(curve.ObjectID);
+                ArcMap.Document.FocusMap.SelectFeature(fl, feature);
                 IEnvelope extent = feature.Shape.Envelope;
 
                 foreach (RelatedCurve rc in curve.ParallelCurves)
                 {
-                    IFeature relatedFeature = curve.Layer.FeatureClass.GetFeature(rc.ObjectID);
-                    ArcMap.Document.FocusMap.SelectFeature(curve.Layer, relatedFeature);
+                    IFeature relatedFeature = fl.FeatureClass.GetFeature(rc.ObjectID);
+                    ArcMap.Document.FocusMap.SelectFeature(fl, relatedFeature);
                     extent.Union(relatedFeature.Extent);
                     Marshal.ReleaseComObject(relatedFeature);
                 }
                 foreach (RelatedCurve rc in curve.TangentCurves)
                 {
-                    IFeature relatedFeature = curve.Layer.FeatureClass.GetFeature(rc.ObjectID);
-                    ArcMap.Document.FocusMap.SelectFeature(curve.Layer, relatedFeature);
+                    IFeature relatedFeature = fl.FeatureClass.GetFeature(rc.ObjectID);
+                    ArcMap.Document.FocusMap.SelectFeature(fl, relatedFeature);
                     extent.Union(relatedFeature.Extent);
                     Marshal.ReleaseComObject(relatedFeature);
                 }
@@ -175,6 +206,19 @@ namespace ParcelFabricCurveByInference
                 ArcMap.Document.ActivatedView.ScreenDisplay.UpdateWindow();
 
                 Marshal.ReleaseComObject(feature);
+            }
+        }
+        private void ApplyChange_Click(object sender, RoutedEventArgs e)
+        {
+            InferredCurve curve = getInferredCurveFromMenuItem(sender);
+            if (curve != null)
+            {
+                IFeatureLayer fl = getLayerByLayerName(curve.LayerName);
+                if (fl == null)
+                    MessageBox.Show(String.Format("The layer {0} could not be found", curve.LayerName));
+
+                CurveByInference context = new CurveByInference();
+                context.FindCurves(true, string.Format("{0} = {1}", fl.FeatureClass.OIDFieldName, curve.ObjectID));
             }
         }
 
@@ -187,5 +231,18 @@ namespace ParcelFabricCurveByInference
             }
             return null;
         }
+        IFeatureLayer getLayerByLayerName(string Name)
+        {
+            IEnumLayer layers = ArcMap.Document.FocusMap.get_Layers(null, true);
+            ILayer layer = null;
+            while((layer = layers.Next()) != null)
+            {
+                if (layer.Name == Name)
+                    return layer as IFeatureLayer;
+            }
+            Marshal.ReleaseComObject(layers);
+            return null;
+        }
+
     }
 }

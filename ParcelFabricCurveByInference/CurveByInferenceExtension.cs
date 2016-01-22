@@ -13,7 +13,12 @@ namespace ParcelFabricCurveByInference
         private static IDockableWindow s_CurveByInfrenceWindow;
 
         public CurveByInferenceExtension()
-        {
+        {            
+            //update the dockable window so that it has the correct version
+            UID dockWinID = new UIDClass();
+            dockWinID.Value = ThisAddIn.IDs.CurveByInferenceWindow;
+            s_CurveByInfrenceWindow = ArcMap.DockableWindowManager.GetDockableWindow(dockWinID);
+            s_CurveByInfrenceWindow.Caption = String.Format("{0} ({1})", s_CurveByInfrenceWindow.Caption, ThisAddIn.Version);
         }
 
         protected override void OnStartup()
@@ -22,6 +27,8 @@ namespace ParcelFabricCurveByInference
             // TODO: Uncomment to start listening to document events
             //
             // WireDocumentEvents();
+
+
         }
 
         private void WireDocumentEvents()
@@ -64,6 +71,8 @@ namespace ParcelFabricCurveByInference
                 UID dockWinID = new UIDClass();
                 dockWinID.Value = ThisAddIn.IDs.CurveByInferenceWindow;
                 s_CurveByInfrenceWindow = ArcMap.DockableWindowManager.GetDockableWindow(dockWinID);
+
+                s_CurveByInfrenceWindow.Caption = String.Format("{0} ({1})", s_CurveByInfrenceWindow.Caption, ThisAddIn.Version);
             }
             return s_CurveByInfrenceWindow;
         }

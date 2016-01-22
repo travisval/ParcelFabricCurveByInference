@@ -19,192 +19,98 @@ using System.Windows.Forms;
 
 namespace ParcelFabricCurveByInference
 {
-    public class InferredCurve : INotifyPropertyChanged
-    {
-        public int ObjectID { get; set; }
-        public string Description { get; set; }
-        public string LayerName { get { return Layer.Name; } }
-        public IFeatureLayer Layer { get; set; }
-
-        public RelatedCurve _Accepted;
-        public RelatedCurve Accepted { get { return _Accepted; } set { _Accepted = value; RaisePropertyChanged("Accepted", "SetVisibility", "ItemColor"); } }
-
-        public System.Windows.Media.Brush ItemColor { get { return (Accepted == null) ? System.Windows.Media.Brushes.Black : System.Windows.Media.Brushes.Blue; } }
-
-        public List<RelatedCurve> _TangentCurves;
-        public List<RelatedCurve> TangentCurves { get { return _TangentCurves; } set { _TangentCurves = value; RaisePropertyChanged("TangentCurves", "TangentVisibility"); } }
-        public System.Windows.Visibility TangentVisibility { get { return (TangentCurves == null || TangentCurves.Count == 0) ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible; } }
-
-        public List<RelatedCurve> _ParallelCurves;
-        public List<RelatedCurve> ParallelCurves { get { return _ParallelCurves; } set { _ParallelCurves = value; RaisePropertyChanged("ParallelCurves", "ParallelVisibility"); } }
-        public System.Windows.Visibility ParallelVisibility { get { return (ParallelCurves == null || ParallelCurves.Count == 0) ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible; } }
-
-        public string Header { get; set; }
-        public System.Windows.Visibility SetVisibility { get { return (Accepted == null) ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible; } }
-
-        public InferredCurve(int id, IFeatureLayer layer, string description)
-        {
-            this.ObjectID = id;
-            this.Description = description;
-            this.Layer = layer;
-
-            this.Header = string.Format("{0} - {1}", LayerName, ObjectID);
-
-            TangentCurves = new List<RelatedCurve>();
-            ParallelCurves = new List<RelatedCurve>();
-        }
-
-        public event PropertyChangedEventHandler PropertyChanged;
-        private void RaisePropertyChanged(params string[] properties)
-        {
-            try
-            {
-                //if (UIDispatcher != null && !UIDispatcher.CheckAccess())
-                //    UIDispatcher.Invoke(() => { RaisePropertyChanged(properties); });
-
-
-                if (PropertyChanged != null)
-                    foreach (string property in properties)
-                        PropertyChanged(this, new PropertyChangedEventArgs(property));
-            }
-            catch (Exception exx)
-            {
-                System.Diagnostics.Debug.WriteLine(exx.Message);
-            }
-        }
-    }
-
-    public enum RelationTypes { Tangent, Parallel }
-    public class RelatedCurve
-    {
-        public int ObjectID { get; set; }
-
-        public double Radius { get; set; }
-        public int CenterpointID { get; set; }
-
-        public CurveByInference.RelativeOrientation Orientation { get; set; }
-
-        public RelationTypes RelationType { get; set; }
-
-        public string Header { get; set; }
-
-        public RelatedCurve(int id, double radius, int centerpointID, RelationTypes relationType)
-        {
-            this.ObjectID = id;
-            this.Radius = radius;
-            this.CenterpointID = centerpointID;
-            this.RelationType = relationType;
-
-            this.Header = String.Format("{0}: CPID:{1} rad:{2}", id, centerpointID, radius);
-        }
-    }
-    public class RelatedCurveComparer : IEqualityComparer<RelatedCurve>
-    {
-        public bool Equals(RelatedCurve x, RelatedCurve y)
-        {
-            return (x.CenterpointID == y.CenterpointID && Math.Abs(x.Radius - y.Radius) < 0.005);
-        }
-
-        public int GetHashCode(RelatedCurve obj)
-        {
-            return (int)(obj.CenterpointID * obj.Radius);
-        }
-    }
-
-       
-
-
     public class CurveByInference : INotifyPropertyChanged
     {
         public ObservableCollection<InferredCurve> Curves { get; private set; }
 
         bool _Finished;
         public bool Finished { get { return _Finished; } set { _Finished = value; RaisePropertyChanged("Finished"); } }
-
-        CancelTracker cancelTracker = new CancelTracker();
-        ProgressDialogFactory progressDialogFactory = new ProgressDialogFactory();
-        IStepProgressor stepProgress;
-
+        
+        int _Total = 0;
+        public int Total { get { return _Total; } private set { _Total = value; RaisePropertyChanged("Total"); } }
+        int _Inferred = 0;
+        public int Inferred { get { return _Inferred; } private set { _Inferred = value; RaisePropertyChanged("Inferred"); } }
+        
         public CurveByInference()
         {
             Finished = true;
             Curves = new ObservableCollection<InferredCurve>();
         }
 
-
-        public void FindCurves(bool UpdateCurves)
+        public void FindCurves(bool withUpdate, string whereClause = null)
         {
             Finished = false;
+            
+            IMap pMap = null;
 
-            setStepProgressorProperties(1, "Initializing");
-            IMouseCursor pMouseCursor = new MouseCursorClass();
-            pMouseCursor.SetCursor(2);
+            IEditor m_pEd = (IEditor)ArcMap.Application.FindExtensionByName("esri object editor");
+            if (withUpdate)
+            {
+                if (m_pEd.EditState == esriEditState.esriStateNotEditing)
+                {
+                    ShowError("Please start editing first, and try again.");
+                    return;
+                }
+                pMap = m_pEd.Map;
+            }
+            else
+            {
+                pMap = ArcMap.Document.ActiveView.FocusMap;
+            }
 
+            //get Cadastral Editor
+            UID pUID = new UIDClass();
+            pUID.Value = "{114D685F-99B7-4B63-B09F-6D1A41A4DDC1}";
+            ICadastralExtensionManager2 pCadExtMan = (ICadastralExtensionManager2)ArcMap.Application.FindExtensionByCLSID(pUID);
+            ICadastralEditor pCadEd = (ICadastralEditor)ArcMap.Application.FindExtensionByCLSID(pUID);
+
+            //check if there is a Manual Mode "modify" job active ===========
+            ICadastralPacketManager pCadPacMan = (ICadastralPacketManager)pCadExtMan;
+            if (pCadPacMan.PacketOpen)
+            {
+                ShowError("The command cannot be used when there is an open job.\r\nPlease finish or discard the open job, and try again.");
+                return;
+            }
+
+
+            myAOProgressor progressor = new myAOProgressor();
             try
             {
-                IMap pMap = null;
+                progressor.setStepProgressorProperties(1, "Initializing");
 
-                IEditor m_pEd = (IEditor)ArcMap.Application.FindExtensionByName("esri object editor");
-                if (UpdateCurves)
+                IEditProperties2 pEditorProps2 = (IEditProperties2)m_pEd;
+
+                IArray LineLyrArr;
+                ICadastralFabric pCadFabric = null;
+                IActiveView pActiveView = ArcMap.Document.ActiveView;
+
+                IAngularConverter pAngConv = new AngularConverterClass();
+
+                if (!GetFabricSubLayers(pMap, esriCadastralFabricTable.esriCFTLines, out LineLyrArr))
                 {
-                    if (m_pEd.EditState == esriEditState.esriStateNotEditing)
+                    ShowError("No cadastral fabric line feature classes found in the current map.");
+                    return;
+                }
+
+                //if we're in an edit session then grab the target fabric
+                if (m_pEd.EditState == esriEditState.esriStateEditing)
+                    pCadFabric = pCadEd.CadastralFabric;
+
+                //find the first fabric in the map
+                if (pCadFabric == null)
+                {
+                    if (!GetFabricFromMap(pMap, out pCadFabric))
                     {
-                        ShowError("Please start editing first, and try again.");
+                        ShowError("No Parcel Fabric found in the map.\r\nPlease add a single fabric to the map, and try again.");
                         return;
                     }
-                    pMap = m_pEd.Map;
-                }
-                else
-                {
-                    pMap = ArcMap.Document.ActiveView.FocusMap;
-                }
-
-                //get Cadastral Editor
-                UID pUID = new UIDClass();
-                pUID.Value = "{114D685F-99B7-4B63-B09F-6D1A41A4DDC1}";
-                ICadastralExtensionManager2 pCadExtMan = (ICadastralExtensionManager2)ArcMap.Application.FindExtensionByCLSID(pUID);
-                ICadastralEditor pCadEd = (ICadastralEditor)ArcMap.Application.FindExtensionByCLSID(pUID);
-
-                //check if there is a Manual Mode "modify" job active ===========
-                ICadastralPacketManager pCadPacMan = (ICadastralPacketManager)pCadExtMan;
-                if (pCadPacMan.PacketOpen)
-                {
-                    ShowError("The command cannot be used when there is an open job.\r\nPlease finish or discard the open job, and try again.");
-                    return;
                 }
 
                 try
                 {
-                    IEditProperties2 pEditorProps2 = (IEditProperties2)m_pEd;
-
-                    IArray LineLyrArr;
-                    ICadastralFabric pCadFabric = null;
-                    IActiveView pActiveView = ArcMap.Document.ActiveView;
-
-                    IAngularConverter pAngConv = new AngularConverterClass();
-
-                    if (!GetFabricSubLayers(pMap, esriCadastralFabricTable.esriCFTLines, out LineLyrArr))
-                    {
-                        ShowError("No cadastral fabric line feature classes found in the current map.");
-                        return;
-                    }
-
-                    //if we're in an edit session then grab the target fabric
-                    if (m_pEd.EditState == esriEditState.esriStateEditing)
-                        pCadFabric = pCadEd.CadastralFabric;
-
-                    //find the first fabric in the map
-                    if (pCadFabric == null)
-                    {
-                        if (!GetFabricFromMap(pMap, out pCadFabric))
-                        {
-                            ShowError("No Parcel Fabric found in the map.\r\nPlease add a single fabric to the map, and try again.");
-                            return;
-                        }
-                    }
-
-                    //Verify that the needed fields are present                                
                     IFeatureClass pFabricLinesFC = (IFeatureClass)pCadFabric.get_CadastralTable(esriCadastralFabricTable.esriCFTLines);
+                    //Verify that the needed fields are present                                
+                    
                     int idxParcelIDFld = pFabricLinesFC.Fields.FindField("ParcelID");
                     int idxCENTERPTID = pFabricLinesFC.Fields.FindField("CenterPointID");
                     int idxRADIUS = pFabricLinesFC.Fields.FindField("Radius");
@@ -213,77 +119,19 @@ namespace ParcelFabricCurveByInference
                         ShowError("One or more of the following fields are missing (ParcelID, CenterPointID, Radius).");
                         return;
                     }
-
+                    
                     HashSet<int> parcelsToLock = new HashSet<int>();
-
                     //for each CF line feature class 
                     for (int i = 0; i < LineLyrArr.Count; i++)
                     {
                         IFeatureLayer layer = LineLyrArr.Element[i] as IFeatureLayer;
+                        IFeatureSelection featureSelection = (IFeatureSelection)layer;
 
-                        //ISelectionSet pSelSet = layer.FeatureClass.Select(null, esriSelectionType.esriSelectionTypeIDSet, esriSelectionOption.esriSelectionOptionNormal, null);
+                        ISelectionSet selectionSet = null;
+                        if (featureSelection.SelectionSet.Count > 0)
+                            selectionSet = featureSelection.SelectionSet;
 
-                        setStepProgressorProperties(((ITable)layer.FeatureClass).RowCount(null), String.Format("Layer {0}: Evaluating Features", layer.Name));
-                        IFeatureCursor cursor = layer.FeatureClass.Search(null, true);
-                        IFeature pLineFeat = null;
-                        while ((pLineFeat = cursor.NextFeature() as IFeature) != null)
-                        {
-                            if (!cancelTracker.Continue())
-                                break;
-                            stepProgress.Step();
-
-                            if (!Curves.Any(w => w.ObjectID == pLineFeat.OID))
-                            {
-                                IGeometry pGeom = pLineFeat.ShapeCopy;
-                                ISegmentCollection pSegColl = pGeom as ISegmentCollection;
-                                ISegment pSeg = null;
-                                if (pSegColl.SegmentCount == 1)
-                                    pSeg = pSegColl.get_Segment(0);
-                                else
-                                {
-                                    //todo: but for now, only deals with single segment short segments
-                                    Marshal.ReleaseComObject(pLineFeat);
-                                    continue;
-                                }
-
-                                //if the geometry is a circular arc and the attributes reflect that, move on to the next feature
-                                if (pSeg is ICircularArc)
-                                {
-                                    object dVal1 = pLineFeat.get_Value(idxRADIUS);
-                                    object dVal2 = pLineFeat.get_Value(idxCENTERPTID);
-                                    if (!(dVal1 is DBNull) && !(dVal2 is DBNull))
-                                    {
-                                        Marshal.ReleaseComObject(pLineFeat);
-                                        continue;
-                                    }
-                                }
-
-                                //query near lines
-                                List<RelatedCurve> sCurveInfoFromNeighbours = GetTangentCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "", pSeg.Length);
-                                
-                                if(sCurveInfoFromNeighbours.Count > 0)
-                                //if (HasTangentCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "", pSeg.Length, out iFoundTangent, ref sCurveInfoFromNeighbours))
-                                {
-                                    //lstLineIds.Add(pLineFeat.OID);
-                                    InferredCurve curve = new InferredCurve(pLineFeat.OID, layer, "Inferred Curve By Tangent");
-                                    Curves.Add(curve);
-                                    curve.TangentCurves = sCurveInfoFromNeighbours;
- 
-                                    //if there's only one tangent look further afield
-                                    if (curve.TangentCurves.Count == 1)
-                                        curve.ParallelCurves = GetParallelCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "");
-
-                                    //Determin if there is assume information to actually set the radius and centerpoint
-                                    RefineToBestRadiusAndCenterPoint(curve);
-
-                                    //if the curve has an accepted curve (ie, it's a candidate to be changed), record the parcel id
-                                    if (curve.Accepted != null)
-                                        parcelsToLock.Add((int)pLineFeat.get_Value(idxParcelIDFld));
-                                }
-                            }
-                            Marshal.ReleaseComObject(pLineFeat);
-                        }
-                        Marshal.ReleaseComObject(cursor);
+                        FindCurves(layer.Name, layer.FeatureClass, selectionSet, whereClause, parcelsToLock, idxRADIUS, idxCENTERPTID, idxParcelIDFld, progressor);
                     }
 
                     if (Curves.Count == 0)
@@ -292,147 +140,8 @@ namespace ParcelFabricCurveByInference
                         return;
                     }
 
-                    //RefineToBestRadiusAndCenterPoint(inferredCurvesLookup, dictLineToCurveNeighbourData);
-
-                    //Test to see if there are actually any updates to apply.  
-                    if (!UpdateCurves || Curves.Count == 0 || parcelsToLock.Count == 0)
-                        return;
-
-                    bool bIsFileBasedGDB = false;
-                    bool bIsUnVersioned = false;
-                    bool bUseNonVersionedDelete = false;
-                    IWorkspace pWS = m_pEd.EditWorkspace;
-
-                    if (!SetupEditEnvironment(pWS, pCadFabric, m_pEd, out bIsFileBasedGDB, out bIsUnVersioned, out bUseNonVersionedDelete))
-                    {
-                        ShowError("The editing environment could not be initialized");
-                        return;
-                    }
-
-
-                    #region Create Cadastral Job
-                    string sTime = "";
-                    if (!bIsUnVersioned && !bIsFileBasedGDB)
-                    {
-                        //see if parcel locks can be obtained on the selected parcels. First create a job.
-                        DateTime localNow = DateTime.Now;
-                        sTime = Convert.ToString(localNow);
-                        ICadastralJob pJob = new CadastralJob();
-                        pJob.Name = sTime;
-                        pJob.Owner = System.Windows.Forms.SystemInformation.UserName;
-                        pJob.Description = "Convert lines to curves";
-                        try
-                        {
-                            Int32 jobId = pCadFabric.CreateJob(pJob);
-                        }
-                        catch (COMException ex)
-                        {
-                            if (ex.ErrorCode == (int)fdoError.FDO_E_CADASTRAL_FABRIC_JOB_ALREADY_EXISTS)
-                            {
-                                ShowError("Job named: '" + pJob.Name + "', already exists");
-                            }
-                            else
-                            {
-                                ShowError(ex.Message);
-                            }
-                            return;
-                        }
-                    }
-                    #endregion
-
-                    #region Test for Edit Locks
-                    ICadastralFabricLocks pFabLocks = (ICadastralFabricLocks)pCadFabric;
-
-                    //only need to get locks for parcels that have lines that are to be changed
-
-
-                    ILongArray pParcelsToLock = new LongArrayClass();
-                    foreach (int i in parcelsToLock)
-                        pParcelsToLock.Add(i);
-
-                    if (!bIsUnVersioned && !bIsFileBasedGDB)
-                    {
-                        pFabLocks.LockingJob = sTime;
-                        ILongArray pLocksInConflict = null;
-                        ILongArray pSoftLcksInConflict = null;
-
-                        if (!bIsFileBasedGDB)
-                            stepProgress.Message = "Testing for edit locks on parcels...";
-
-                        try
-                        {
-                            pFabLocks.AcquireLocks(pParcelsToLock, true, ref pLocksInConflict, ref pSoftLcksInConflict);
-                        }
-                        catch (COMException pCOMEx)
-                        {
-                            if (pCOMEx.ErrorCode == (int)fdoError.FDO_E_CADASTRAL_FABRIC_JOB_LOCK_ALREADY_EXISTS ||
-                              pCOMEx.ErrorCode == (int)fdoError.FDO_E_CADASTRAL_FABRIC_JOB_CURRENTLY_EDITED)
-                            {
-                                ShowError("Edit Locks could not be acquired on all selected parcels.");
-                                // since the operation is being aborted, release any locks that were acquired
-                                pFabLocks.UndoLastAcquiredLocks();
-                            }
-                            else
-                                ShowError(pCOMEx.Message + Environment.NewLine + Convert.ToString(pCOMEx.ErrorCode));
-
-                            return;
-                        }
-                    }
-                    #endregion
-
-                    if (m_pEd.EditState == esriEditState.esriStateEditing)
-                    {
-                        try
-                        {
-                            m_pEd.StartOperation();
-                        }
-                        catch
-                        {
-                            m_pEd.AbortOperation();//abort any open edit operations and try again
-                            m_pEd.StartOperation();
-                        }
-                    }
-                    if (bUseNonVersionedDelete)
-                    {
-                        if (!StartEditing(pWS, bIsUnVersioned))
-                        {
-                            ShowError("Couldn't start an edit session");
-                            return;
-                        }
-                    }
-
-                    ICadastralFabricSchemaEdit2 pSchemaEd = (ICadastralFabricSchemaEdit2)pCadFabric;
-                    pSchemaEd.ReleaseReadOnlyFields((ITable)pFabricLinesFC, esriCadastralFabricTable.esriCFTLines); //release for edits
-
-                    IQueryFilter m_pQF = new QueryFilter();
-
-                    // m_pEd.StartOperation();
-
-                    //copy all the curves that have an accepted curve to a dictionay
-                    var ToUpdate = (from c in Curves where c.Accepted != null select c).ToList();
-
-                    //Slice the list into sets that will fit into an in list
-                    setStepProgressorProperties(ToUpdate.Count, "Updating geometries");
-                    for (var i = 0; i < ToUpdate.Count; i += 995)
-                    {
-                        Dictionary<int, InferredCurve> curvesSlice = ToUpdate.Skip(i).Take(995).ToDictionary(w => w.ObjectID);
-                        if (!cancelTracker.Continue())
-                            return;
-                        m_pQF.WhereClause = String.Format("{0} IN ({1})", pFabricLinesFC.OIDFieldName, String.Join(",", (from oid in curvesSlice.Keys select oid.ToString()).ToArray()));
-                        UpdateCircularArcValues((ITable)pFabricLinesFC, m_pQF, bIsUnVersioned, curvesSlice, cancelTracker);
-                    }
-
-                    //List<string> sInClauseList = InClauseFromOIDsList(Curves, 995);
-                    //foreach (string InClause in sInClauseList)
-                    //{
-                    //    if (!cancelTracker.Continue())
-                    //        return;
-
-                    //    m_pQF.WhereClause = pFabricLinesFC.OIDFieldName + " IN (" + InClause + ")";
-                    //    if (!UpdateCircularArcValues((ITable)pFabricLinesFC, m_pQF, bIsUnVersioned, Curves, stepProgress, cancelTracker))
-                    //        ;
-                    //}
-                    m_pEd.StopOperation("Insert missing circular arc information.");
+                    if (withUpdate && Curves.Count > 0 && parcelsToLock.Count > 0)
+                        UpdateCurves(pCadFabric, pFabricLinesFC, Curves, parcelsToLock, progressor);
 
                 }
                 catch (Exception ex)
@@ -449,19 +158,250 @@ namespace ParcelFabricCurveByInference
             }
             finally
             {
-
-                if (pMouseCursor != null)
-                    Marshal.ReleaseComObject(pMouseCursor);
-                if (stepProgress != null)
-                {
-                    //Not sure if this should be disposed as a IProgressDialog2 or IStepProgressor.  I don't know if it matters
-                    //IProgressDialog2::HideDialog needs to be called or the dialog hangs around
-                    //IStepProgressor::Hide isn't enough
-                    ((IProgressDialog2)stepProgress).HideDialog();
-                    Marshal.ReleaseComObject((IProgressDialog2)stepProgress);
-                }
+                progressor.Dispose();
                 Finished = true;
             }
+        }
+
+        public void FindCurves(String Name, IFeatureClass pFabricLinesFC, ISelectionSet selSet, string whereClause, HashSet<int> affectedParcels, int idxRADIUS, int idxCENTERPTID, int idxParcelIDFld, myProgessor progressor)
+        {
+            IQueryFilter qFilter = new QueryFilter();
+            if (String.IsNullOrEmpty(whereClause))
+            {
+                qFilter.WhereClause = "CenterPointID is null and Radius is null";
+            }
+            else
+            {
+                qFilter.WhereClause = string.Concat(whereClause, " and CenterPointID is null and Radius is null");
+            }
+
+            IFeatureCursor cursor = null;
+            if (selSet != null)
+            {
+                ICursor c;
+                ISelectionSet subset = selSet.Select(qFilter, esriSelectionType.esriSelectionTypeIDSet, esriSelectionOption.esriSelectionOptionNormal, null);
+                progressor.setStepProgressorProperties(subset.Count, String.Format("Layer {0}: Evaluating Selected Features", Name));
+
+                subset.Search(null, true, out c);
+                cursor = (IFeatureCursor)c;
+            }
+            else
+            {
+                progressor.setStepProgressorProperties(((ITable)pFabricLinesFC).RowCount(qFilter), String.Format("Layer {0}: Evaluating Features", Name));
+                cursor = pFabricLinesFC.Search(qFilter, true);
+            }
+
+            //ISelectionSet pSelSet = pFabricLinesFC.Select(qFilter, esriSelectionType.esriSelectionTypeIDSet, esriSelectionOption.esriSelectionOptionNormal, null);
+            //progressor.setStepProgressorProperties(pSelSet.Count, String.Format("Layer {0}: Evaluating Features", Name));
+            //ICursor cursor = null;
+            //pSelSet.Search(null, false, out cursor);
+
+
+            IFeature pLineFeat = null;
+            while ((pLineFeat = (IFeature)cursor.NextFeature() as IFeature) != null)
+            {
+                if (!progressor.Continue())
+                    break;
+                progressor.Step();
+
+                if (!Curves.Any(w => w.ObjectID == pLineFeat.OID))
+                {
+                    IGeometry pGeom = pLineFeat.ShapeCopy;
+                    ISegmentCollection pSegColl = pGeom as ISegmentCollection;
+                    ISegment pSeg = null;
+                    if (pSegColl.SegmentCount == 1)
+                        pSeg = pSegColl.get_Segment(0);
+                    else
+                    {
+                        //todo: but for now, only deals with single segment short segments
+                        Marshal.ReleaseComObject(pLineFeat);
+                        continue;
+                    }
+
+                    //if the geometry is a circular arc and the attributes reflect that, move on to the next feature
+                    //obsolete, filter is pushed to database
+                    //if (pSeg is ICircularArc)
+                    //{
+                    //    object dVal1 = pLineFeat.get_Value(idxRADIUS);
+                    //    object dVal2 = pLineFeat.get_Value(idxCENTERPTID);
+                    //    if (!(dVal1 is DBNull) && !(dVal2 is DBNull))
+                    //    {
+                    //        Marshal.ReleaseComObject(pLineFeat);
+                    //        continue;
+                    //    }
+                    //}
+
+                    //query near lines
+                    List<RelatedCurve> sCurveInfoFromNeighbours = GetTangentCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "", idxRADIUS, idxCENTERPTID, pSeg.Length);
+                                
+                    if(sCurveInfoFromNeighbours.Count > 0)
+                    //if (HasTangentCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "", pSeg.Length, out iFoundTangent, ref sCurveInfoFromNeighbours))
+                    {
+                        //lstLineIds.Add(pLineFeat.OID);
+                        InferredCurve curve = new InferredCurve(pLineFeat.OID, Name, sCurveInfoFromNeighbours);
+                        Curves.Add(curve);
+ 
+                        //if there's only one tangent look further afield
+                        if (curve.TangentCurves.Count == 1)
+                            curve.ParallelCurves = GetParallelCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "");
+
+                        //Determin if there is enough information to actually set the radius and centerpoint
+                        RefineToBestRadiusAndCenterPoint(curve);
+
+                        //if the curve has an accepted curve (ie, it's a candidate to be changed), record the parcel id
+                        if (curve.Accepted != null)
+                            affectedParcels.Add((int)pLineFeat.get_Value(idxParcelIDFld));
+                    }
+                }
+                Marshal.ReleaseComObject(pLineFeat);
+            }
+            Marshal.ReleaseComObject(cursor);
+
+            Total = Curves.Count;
+            Inferred = Curves.Count(w => w.Accepted != null);
+        }
+
+        void UpdateCurves(ICadastralFabric pCadFabric, IFeatureClass pFabricLinesFC, IEnumerable<InferredCurve> curvesToUpdate, HashSet<int> parcelsToLock, myProgessor progressor)
+        {
+            IEditor m_pEd = (IEditor)ArcMap.Application.FindExtensionByName("esri object editor");
+
+            bool bIsFileBasedGDB = false;
+            bool bIsUnVersioned = false;
+            bool bUseNonVersionedDelete = false;
+            IWorkspace pWS = m_pEd.EditWorkspace;
+
+            if (!SetupEditEnvironment(pWS, pCadFabric, m_pEd, out bIsFileBasedGDB, out bIsUnVersioned, out bUseNonVersionedDelete))
+            {
+                ShowError("The editing environment could not be initialized");
+                return;
+            }
+
+            #region Create Cadastral Job
+            string sTime = "";
+            if (!bIsUnVersioned && !bIsFileBasedGDB)
+            {
+                //see if parcel locks can be obtained on the selected parcels. First create a job.
+                DateTime localNow = DateTime.Now;
+                sTime = Convert.ToString(localNow);
+                ICadastralJob pJob = new CadastralJob();
+                pJob.Name = sTime;
+                pJob.Owner = System.Windows.Forms.SystemInformation.UserName;
+                pJob.Description = "Convert lines to curves";
+                try
+                {
+                    Int32 jobId = pCadFabric.CreateJob(pJob);
+                }
+                catch (COMException ex)
+                {
+                    if (ex.ErrorCode == (int)fdoError.FDO_E_CADASTRAL_FABRIC_JOB_ALREADY_EXISTS)
+                    {
+                        ShowError("Job named: '" + pJob.Name + "', already exists");
+                    }
+                    else
+                    {
+                        ShowError(ex.Message);
+                    }
+                    return;
+                }
+            }
+            #endregion
+
+            #region Test for Edit Locks
+            ICadastralFabricLocks pFabLocks = (ICadastralFabricLocks)pCadFabric;
+
+            //only need to get locks for parcels that have lines that are to be changed
+
+
+            ILongArray pParcelsToLock = new LongArrayClass();
+            foreach (int i in parcelsToLock)
+                pParcelsToLock.Add(i);
+
+            if (!bIsUnVersioned && !bIsFileBasedGDB)
+            {
+                pFabLocks.LockingJob = sTime;
+                ILongArray pLocksInConflict = null;
+                ILongArray pSoftLcksInConflict = null;
+
+                if (!bIsFileBasedGDB)
+                    progressor.setStepProgressorProperties(0, "Testing for edit locks on parcels...");
+
+                try
+                {
+                    pFabLocks.AcquireLocks(pParcelsToLock, true, ref pLocksInConflict, ref pSoftLcksInConflict);
+                }
+                catch (COMException pCOMEx)
+                {
+                    if (pCOMEx.ErrorCode == (int)fdoError.FDO_E_CADASTRAL_FABRIC_JOB_LOCK_ALREADY_EXISTS ||
+                        pCOMEx.ErrorCode == (int)fdoError.FDO_E_CADASTRAL_FABRIC_JOB_CURRENTLY_EDITED)
+                    {
+                        ShowError("Edit Locks could not be acquired on all selected parcels.");
+                        // since the operation is being aborted, release any locks that were acquired
+                        pFabLocks.UndoLastAcquiredLocks();
+                    }
+                    else
+                        ShowError(pCOMEx.Message + Environment.NewLine + Convert.ToString(pCOMEx.ErrorCode));
+
+                    return;
+                }
+            }
+            #endregion
+
+            if (m_pEd.EditState == esriEditState.esriStateEditing)
+            {
+                try
+                {
+                    m_pEd.StartOperation();
+                }
+                catch
+                {
+                    m_pEd.AbortOperation();//abort any open edit operations and try again
+                    m_pEd.StartOperation();
+                }
+            }
+            if (bUseNonVersionedDelete)
+            {
+                if (!StartEditing(pWS, bIsUnVersioned))
+                {
+                    ShowError("Couldn't start an edit session");
+                    return;
+                }
+            }
+
+            ICadastralFabricSchemaEdit2 pSchemaEd = (ICadastralFabricSchemaEdit2)pCadFabric;
+            pSchemaEd.ReleaseReadOnlyFields((ITable)pFabricLinesFC, esriCadastralFabricTable.esriCFTLines); //release for edits
+
+            IQueryFilter m_pQF = new QueryFilter();
+
+            // m_pEd.StartOperation();
+
+            //copy all the curves that have an accepted curve to a dictionay
+            var ToUpdate = (from c in Curves where c.Accepted != null select c).ToList();
+
+            //Slice the list into sets that will fit into an in list
+            progressor.setStepProgressorProperties(ToUpdate.Count, "Updating geometries");
+            for (var i = 0; i < ToUpdate.Count; i += 995)
+            {
+                Dictionary<int, InferredCurve> curvesSlice = ToUpdate.Skip(i).Take(995).ToDictionary(w => w.ObjectID);
+                if (!progressor.Continue())
+                    return;
+                m_pQF.WhereClause = String.Format("{0} IN ({1})", pFabricLinesFC.OIDFieldName, String.Join(",", (from oid in curvesSlice.Keys select oid.ToString()).ToArray()));
+                UpdateCircularArcValues((ITable)pFabricLinesFC, m_pQF, bIsUnVersioned, curvesSlice, progressor);
+            }
+
+            //List<string> sInClauseList = InClauseFromOIDsList(Curves, 995);
+            //foreach (string InClause in sInClauseList)
+            //{
+            //    if (!cancelTracker.Continue())
+            //        return;
+
+            //    m_pQF.WhereClause = pFabricLinesFC.OIDFieldName + " IN (" + InClause + ")";
+            //    if (!UpdateCircularArcValues((ITable)pFabricLinesFC, m_pQF, bIsUnVersioned, Curves, stepProgress, cancelTracker))
+            //        ;
+            //}
+            m_pEd.StopOperation("Insert missing circular arc information.");
+
+                
+
         }
 
         #region Access
@@ -586,27 +526,27 @@ namespace ParcelFabricCurveByInference
             return true;
         }
 
-        public void FIDsetToLongArray(IFIDSet InFIDSet, ref ILongArray OutLongArray, ref int[] OutIntArray)
-        {
-            setStepProgressorProperties(InFIDSet.Count(), "Converting ObjectIDs");
+        //public void FIDsetToLongArray(IFIDSet InFIDSet, ref ILongArray OutLongArray, ref int[] OutIntArray)
+        //{
+        //    setStepProgressorProperties(InFIDSet.Count(), "Converting ObjectIDs");
 
-            Int32 pfID = -1;
-            InFIDSet.Reset();
-            double dMax = InFIDSet.Count();
-            int iMax = (int)(dMax);
-            for (Int32 pCnt = 0; pCnt <= (InFIDSet.Count() - 1); pCnt++)
-            {
-                InFIDSet.Next(out pfID);
-                OutLongArray.Add(pfID);
-                OutIntArray[pCnt] = pfID;
-                if (stepProgress != null)
-                {
-                    if (stepProgress.Position < stepProgress.MaxRange)
-                        stepProgress.Step();
-                }
-            }
-            return;
-        }
+        //    Int32 pfID = -1;
+        //    InFIDSet.Reset();
+        //    double dMax = InFIDSet.Count();
+        //    int iMax = (int)(dMax);
+        //    for (Int32 pCnt = 0; pCnt <= (InFIDSet.Count() - 1); pCnt++)
+        //    {
+        //        InFIDSet.Next(out pfID);
+        //        OutLongArray.Add(pfID);
+        //        OutIntArray[pCnt] = pfID;
+        //        if (stepProgress != null)
+        //        {
+        //            if (stepProgress.Position < stepProgress.MaxRange)
+        //                stepProgress.Step();
+        //        }
+        //    }
+        //    return;
+        //}
 
         public bool StartEditing(IWorkspace TheWorkspace, bool IsUnversioned)   // Start EditSession + create EditOperation
         {
@@ -694,7 +634,7 @@ namespace ParcelFabricCurveByInference
             return InClause;
         }
 
-        public bool UpdateCircularArcValues(ITable LineTable, IQueryFilter QueryFilter, bool Unversioned, IDictionary<int, InferredCurve> CurveLookup, CancelTracker cancelTracker)
+        public bool UpdateCircularArcValues(ITable LineTable, IQueryFilter QueryFilter, bool Unversioned, IDictionary<int, InferredCurve> CurveLookup, myProgessor progressor)
         {
             try
             {
@@ -714,9 +654,9 @@ namespace ParcelFabricCurveByInference
 
                 while ((pLineFeat = pLineCurs.NextRow()) != null)
                 {//loop through all of the given lines, and update centerpoint ids and the Radius values
-                    if (!cancelTracker.Continue())
+                    if (!progressor.Continue())
                         return false;
-                    stepProgress.Step();
+                    progressor.Step();
 
                     //List<string> CurveInfoList = CurveLookup[pLineFeat.OID];
                     //InferredCurve CurveInfoList = CurveLookup[pLineFeat.OID];
@@ -724,64 +664,6 @@ namespace ParcelFabricCurveByInference
                     //string[] sCurveInfo = CurveInfoList[0].Split(','); //should only be one element in the list at this point
                     //RelatedCurve curveInfo = CurveInfoList.FirstOrDefault(w=>w.Accepted);
                     RelatedCurve curveInfo = CurveLookup[pLineFeat.OID].Accepted;
-                    //if (sCurveInfo.Length > 2)
-                    //if (!curveInfo.)
-                    //{
-                    //    Marshal.ReleaseComObject(pLineFeat); //garbage collection
-                    //    continue;
-                    //}
-                    //double dRadius = Convert.ToDouble(sCurveInfo[0]);
-                    //int iCtrPointID = Convert.ToInt32(sCurveInfo[1]);
-                    pLineFeat.set_Value(iRadiusIDX, curveInfo.Radius);
-                    pLineFeat.set_Value(iCtrPointIDX, curveInfo.CenterpointID);
-
-                    if (Unversioned)
-                        pLineCurs.UpdateRow(pLineFeat);
-                    else
-                        pLineFeat.Store();
-
-                    Marshal.ReleaseComObject(pLineFeat); //garbage collection
-                }
-                Marshal.ReleaseComObject(pLineCurs); //garbage collection
-                return true;
-            }
-            catch (COMException ex)
-            {
-                MessageBox.Show("Problem updating circular arc: " + Convert.ToString(ex.ErrorCode));
-                return false;
-            }
-        }
-
-        public bool UpdateCircularArcValues(ITable LineTable, IQueryFilter QueryFilter, bool Unversioned, Dictionary<int, List<RelatedCurve>> CurveLookup, CancelTracker cancelTracker)
-        {
-            try
-            {
-                ITableWrite pTableWr = (ITableWrite)LineTable;//used for unversioned table
-                IRow pLineFeat = null;
-                ICursor pLineCurs = null;
-
-                if (Unversioned)
-                    pLineCurs = pTableWr.UpdateRows(QueryFilter, false);
-                else
-                    pLineCurs = LineTable.Update(QueryFilter, false);
-
-                pLineFeat = null;
-
-                Int32 iCtrPointIDX = pLineCurs.Fields.FindField("CENTERPOINTID");
-                Int32 iRadiusIDX = pLineCurs.Fields.FindField("RADIUS");
-
-                while ((pLineFeat = pLineCurs.NextRow()) != null)
-                {//loop through all of the given lines, and update centerpoint ids and the Radius values
-                    if (!cancelTracker.Continue())
-                        return false;
-                    stepProgress.Step();
-
-                    //List<string> CurveInfoList = CurveLookup[pLineFeat.OID];
-                    List<RelatedCurve> CurveInfoList = CurveLookup[pLineFeat.OID];
-
-                    //string[] sCurveInfo = CurveInfoList[0].Split(','); //should only be one element in the list at this point
-                    //RelatedCurve curveInfo = CurveInfoList.FirstOrDefault(w=>w.Accepted);
-                    RelatedCurve curveInfo = CurveInfoList[0];
                     //if (sCurveInfo.Length > 2)
                     //if (!curveInfo.)
                     //{
@@ -1062,7 +944,8 @@ namespace ParcelFabricCurveByInference
         }
 
         public List<RelatedCurve> GetTangentCurveMatchFeatures(IFeatureClass FeatureClass, IPolycurve inPolycurve, string WhereClause,
-                                                 double SegementLength)
+                                                int idxRadius, int idxCenterPointID,
+                                                double SegementLength)
             //double AngleToleranceTangentCompareInDegrees, double StraightLinesBreakLessThanInDegrees, 
             //double MaximumDeltaInDegrees, double ExcludeTangentsShorterThan,
             //                                     out int outFoundTangentCurvesCount, ref List<RelatedCurve> CurveInfoFromNeighbours)
@@ -1073,14 +956,6 @@ namespace ParcelFabricCurveByInference
             pOriginalChord.PutCoords(inPolycurve.FromPoint, inPolycurve.ToPoint);
             IVector3D vecOriginalSelected = (IVector3D)new Vector3D();
             vecOriginalSelected.PolarSet(pOriginalChord.Angle, 0, 1);
-
-            int idxRadius = FeatureClass.FindField("RADIUS");
-            if (idxRadius == -1)
-                return CurveInfoFromNeighbours;
-
-            int idxCenterPointID = FeatureClass.FindField("CENTERPOINTID");
-            if (idxCenterPointID == -1)
-                return CurveInfoFromNeighbours;
 
             IGeometryBag pGeomBag = (IGeometryBag)new GeometryBag();
             IGeometryCollection pGeomColl = (IGeometryCollection)pGeomBag;
@@ -1102,7 +977,7 @@ namespace ParcelFabricCurveByInference
                 if (i == 0)
                 {
                     //Add line tangent at end point
-                    inPolycurve.QueryTangent(esriSegmentExtension.esriExtendAtTo, 1.0, true, 0.2, inGeomTangentLineAtEnd);
+                    inPolycurve.QueryTangent(esriSegmentExtension.esriExtendAtTo, 1.0, true, CurveByInferenceSettings.Instance.TangentQueryLength, inGeomTangentLineAtEnd);
                     pThisLine = new Line();
                     pThisLine.PutCoords(inGeomTangentLineAtEnd.FromPoint, inGeomTangentLineAtEnd.ToPoint);
                     pGeomColl.AddGeometry(pThisLine);
@@ -1110,7 +985,7 @@ namespace ParcelFabricCurveByInference
                 else
                 {
                     //Add line tangent at start point
-                    inPolycurve.QueryTangent(esriSegmentExtension.esriExtendAtFrom, 0.0, true, 0.2, inGeomTangentLineAtStart);
+                    inPolycurve.QueryTangent(esriSegmentExtension.esriExtendAtFrom, 0.0, true, CurveByInferenceSettings.Instance.TangentQueryLength, inGeomTangentLineAtStart);
                     pThisLine = new Line();
                     pThisLine.PutCoords(inGeomTangentLineAtStart.FromPoint, inGeomTangentLineAtStart.ToPoint);
                     pGeomColl.AddGeometry(pThisLine);
@@ -1132,7 +1007,7 @@ namespace ParcelFabricCurveByInference
                 pPolyL.AddGeometry((IGeometry)pPath);
 
                 ITopologicalOperator topologicalOperator = (ITopologicalOperator)pPolyL;
-                IPolygon pBuffer = topologicalOperator.Buffer(0.1) as IPolygon;
+                IPolygon pBuffer = topologicalOperator.Buffer(CurveByInferenceSettings.Instance.TangentQueryBuffer) as IPolygon;
                 outBufferedGeometryCol.AddGeometry(pBuffer, ref objMissing, ref objMissing);
             }
             ITopologicalOperator pUnionedBuffers = null;
@@ -1251,6 +1126,7 @@ namespace ParcelFabricCurveByInference
                 {
                     if (lstLargeBreak.Contains(iRelativeOrientation))
                         bHasTangentStraightLineAtJunction = true;
+                     
                 }
 
                 if (!foundCentriodID.HasValue || foundRadius == 0 || foundPolyCurve.Length < ExcludeTangentsShorterThan)
@@ -1345,6 +1221,58 @@ namespace ParcelFabricCurveByInference
             //iRelativeOrientation == 3 --> closest points are original FROM and found TO
             //iRelativeOrientation == 4 --> closest points are original FROM and found FROM
 
+            int ret = 1;
+            double dist = ((IProximityOperator)pFoundLineAsPolyCurve.ToPoint).ReturnDistance(inPolycurve.ToPoint);
+            if (dist < 0.005) 
+                return (RelativeOrientation)ret;
+            
+
+            double dist2 = ((IProximityOperator)pFoundLineAsPolyCurve.FromPoint).ReturnDistance(inPolycurve.ToPoint);
+            if(dist2 < 0.005)
+                return (RelativeOrientation)2;
+            if (dist2 < dist)
+            {
+                dist = dist2;
+                ret = 2;
+            }
+
+            double dist3 = ((IProximityOperator)pFoundLineAsPolyCurve.FromPoint).ReturnDistance(inPolycurve.ToPoint);
+            if(dist3 < 0.005)
+                return (RelativeOrientation)3;
+            if (dist3 < dist)
+            {
+                dist = dist3;
+                ret = 3;
+            }
+
+            double dist4 = ((IProximityOperator)pFoundLineAsPolyCurve.FromPoint).ReturnDistance(inPolycurve.ToPoint);
+            if (dist4 < dist)
+                ret = 4;
+
+            return (RelativeOrientation)ret;
+        }
+        private RelativeOrientation GetRelativeOrientation2(IPolycurve pFoundLineAsPolyCurve, IPolycurve inPolycurve)
+        {
+            //iRelativeOrientation == 1 --> closest points are original TO and found TO
+            //iRelativeOrientation == 2 --> closest points are original TO and found FROM
+            //iRelativeOrientation == 3 --> closest points are original FROM and found TO
+            //iRelativeOrientation == 4 --> closest points are original FROM and found FROM
+            
+            Dictionary<int, double> dictSort2GetShortest = new Dictionary<int, double>();
+            dictSort2GetShortest.Add(1, ((IProximityOperator)pFoundLineAsPolyCurve.ToPoint).ReturnDistance(inPolycurve.ToPoint));
+            dictSort2GetShortest.Add(2, ((IProximityOperator)pFoundLineAsPolyCurve.FromPoint).ReturnDistance(inPolycurve.ToPoint));
+            dictSort2GetShortest.Add(3, ((IProximityOperator)pFoundLineAsPolyCurve.ToPoint).ReturnDistance(inPolycurve.FromPoint));
+            dictSort2GetShortest.Add(4, ((IProximityOperator)pFoundLineAsPolyCurve.FromPoint).ReturnDistance(inPolycurve.FromPoint));
+
+            return (RelativeOrientation)dictSort2GetShortest.Aggregate((l, r) => l.Value < r.Value ? l : r).Key;
+        }
+        private RelativeOrientation GetRelativeOrientation_org(IPolycurve pFoundLineAsPolyCurve, IPolycurve inPolycurve)
+        {
+            //iRelativeOrientation == 1 --> closest points are original TO and found TO
+            //iRelativeOrientation == 2 --> closest points are original TO and found FROM
+            //iRelativeOrientation == 3 --> closest points are original FROM and found TO
+            //iRelativeOrientation == 4 --> closest points are original FROM and found FROM
+
             Dictionary<int, double> dictSort2GetShortest = new Dictionary<int, double>();
 
             ILine pFoundTo_2_OriginalTo = new Line();
@@ -1374,29 +1302,6 @@ namespace ParcelFabricCurveByInference
         #endregion
 
         #region UI Update
-
-        void setStepProgressorProperties(int MaxRange, String Message, int MinRange = 0, int Position = 0, int StepValue = 1)
-        {
-            if (stepProgress != null)
-            {
-                stepProgress.Hide();
-                Marshal.ReleaseComObject(stepProgress);
-            }
-
-            stepProgress = progressDialogFactory.Create(cancelTracker, 0);
-            IProgressDialog2 progressDialog = (IProgressDialog2)stepProgress;
-            progressDialog.Animation = esriProgressAnimationTypes.esriProgressSpiral;
-            progressDialog.Title = "Inferring Curved Segments";
-
-            stepProgress.Message = Message;
-            if (MaxRange != MinRange)  //for some reason, if you set the values the same, the progressor doesn't go away
-            {
-                stepProgress.MinRange = MinRange;
-                stepProgress.MaxRange = MaxRange;
-                stepProgress.StepValue = StepValue;
-            }
-            stepProgress.Show();
-        }
 
         public event PropertyChangedEventHandler PropertyChanged;
         private void RaisePropertyChanged(params string[] properties)
