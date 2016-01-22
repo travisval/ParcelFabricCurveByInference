@@ -71,49 +71,42 @@ namespace ParcelFabricCurveByInference
                 ShowError("The command cannot be used when there is an open job.\r\nPlease finish or discard the open job, and try again.");
                 return;
             }
-
+            
+            IRelationshipClass relationshipClass = null;
+            ISelectionSet relatedSelectionSet = null;
 
             myAOProgressor progressor = new myAOProgressor();
             try
             {
                 progressor.setStepProgressorProperties(1, "Initializing");
-
                 IEditProperties2 pEditorProps2 = (IEditProperties2)m_pEd;
-
-                IArray LineLyrArr;
-                ICadastralFabric pCadFabric = null;
                 IActiveView pActiveView = ArcMap.Document.ActiveView;
-
                 IAngularConverter pAngConv = new AngularConverterClass();
 
-                if (!GetFabricSubLayers(pMap, esriCadastralFabricTable.esriCFTLines, out LineLyrArr))
+                var CFLayers = GetFabricLayers(pMap);
+                if(CFLayers.Count == 0)
                 {
-                    ShowError("No cadastral fabric line feature classes found in the current map.");
+                    ShowError("No cadastral fabric layers found in the current map.");
                     return;
                 }
-
-                //if we're in an edit session then grab the target fabric
-                if (m_pEd.EditState == esriEditState.esriStateEditing)
-                    pCadFabric = pCadEd.CadastralFabric;
-
-                //find the first fabric in the map
-                if (pCadFabric == null)
+                if (CFLayers.Count > 1)
                 {
-                    if (!GetFabricFromMap(pMap, out pCadFabric))
-                    {
-                        ShowError("No Parcel Fabric found in the map.\r\nPlease add a single fabric to the map, and try again.");
-                        return;
-                    }
+                    ShowError("Multiple cadastral fabric layers found in the current map.");
+                    return;
                 }
+                ICadastralFabricLayer CFLayer = CFLayers.First();
+                ICadastralFabric pCadFabric = CFLayer.CadastralFabric;
 
+                IFeatureLayer CFLineLayer = CFLayer.get_CadastralSubLayer(esriCadastralFabricRenderer.esriCFRLines);
+                IFeatureLayer CFParcelLayer = CFLayer.get_CadastralSubLayer(esriCadastralFabricRenderer.esriCFRParcels);
+                
                 try
                 {
-                    IFeatureClass pFabricLinesFC = (IFeatureClass)pCadFabric.get_CadastralTable(esriCadastralFabricTable.esriCFTLines);
-                    //Verify that the needed fields are present                                
                     
-                    int idxParcelIDFld = pFabricLinesFC.Fields.FindField("ParcelID");
-                    int idxCENTERPTID = pFabricLinesFC.Fields.FindField("CenterPointID");
-                    int idxRADIUS = pFabricLinesFC.Fields.FindField("Radius");
+                    //Verify that the needed fields are present                                
+                    int idxParcelIDFld = CFLineLayer.FeatureClass.Fields.FindField("ParcelID");
+                    int idxCENTERPTID = CFLineLayer.FeatureClass.Fields.FindField("CenterPointID");
+                    int idxRADIUS = CFLineLayer.FeatureClass.Fields.FindField("Radius");
                     if (idxParcelIDFld == -1 || idxCENTERPTID == -1 || idxRADIUS == -1)
                     {
                         ShowError("One or more of the following fields are missing (ParcelID, CenterPointID, Radius).");
@@ -122,17 +115,68 @@ namespace ParcelFabricCurveByInference
                     
                     HashSet<int> parcelsToLock = new HashSet<int>();
                     //for each CF line feature class 
-                    for (int i = 0; i < LineLyrArr.Count; i++)
+                    IFeatureSelection CFLineFeatureSelection = (IFeatureSelection)CFLineLayer;
+                    IFeatureSelection CFParcelFeatureSelection = (IFeatureSelection)CFParcelLayer;
+
+                    ISelectionSet selectionSet = null;
+                    if (CFParcelFeatureSelection.SelectionSet.Count > 0)
                     {
-                        IFeatureLayer layer = LineLyrArr.Element[i] as IFeatureLayer;
-                        IFeatureSelection featureSelection = (IFeatureSelection)layer;
+                        //parcels selected
+                        
+                        //Create memory relationship class to help with the mapping
+                        IMemoryRelationshipClassFactory MemoryRCF = new MemoryRelationshipClassFactoryClass();
+                        relationshipClass = MemoryRCF.Open("Parcel_Layer_Rel", CFParcelLayer.FeatureClass, "ObjectID", CFLineLayer.FeatureClass, "ParcelID", "forward", "backward", esriRelCardinality.esriRelCardinalityOneToMany);
 
-                        ISelectionSet selectionSet = null;
-                        if (featureSelection.SelectionSet.Count > 0)
-                            selectionSet = featureSelection.SelectionSet;
+                        //convert selection set to ISet of rows
+                        ISet polySet = new Set();
+                        ICursor cursor;
+                        CFParcelFeatureSelection.SelectionSet.Search(null, false, out cursor);
+                        IRow row = null;
+                        while((row = cursor.NextRow()) != null)
+                            polySet.Add(row);
+                        polySet.Reset();
 
-                        FindCurves(layer.Name, layer.FeatureClass, selectionSet, whereClause, parcelsToLock, idxRADIUS, idxCENTERPTID, idxParcelIDFld, progressor);
+                        //use the relationship class to find related rows
+                        ISet lineSet = relationshipClass.GetObjectsRelatedToObjectSet(polySet);
+
+                        //convert set back to selection set
+                        lineSet.Reset();
+                        
+                        //create an empty selection set (there should be a better way to do this....
+                        
+                        //will only evaluate the lines related to the parcels that are selected
+                        //selectionSet = CFLineLayer.FeatureClass.Select(new QueryFilter() { WhereClause = "1=0" }, esriSelectionType.esriSelectionTypeIDSet, esriSelectionOption.esriSelectionOptionNormal, null);
+
+                        //will union the current line selection and the parcel selection
+                        relatedSelectionSet = CFLineFeatureSelection.SelectionSet.Select(null, esriSelectionType.esriSelectionTypeIDSet, esriSelectionOption.esriSelectionOptionNormal, null);
+                        
+                        while ((row = (IRow)lineSet.Next()) != null)
+                        {
+                            selectionSet.Add(row.OID);
+                            Marshal.ReleaseComObject(row);
+                        }
+                        Marshal.ReleaseComObject(lineSet);
+                        polySet.Reset();
+                        while ((row = (IRow)polySet.Next()) != null)
+                            Marshal.ReleaseComObject(row);
+                        Marshal.ReleaseComObject(polySet);
+
+                        selectionSet = relatedSelectionSet;
                     }
+                    else if (CFLineFeatureSelection.SelectionSet.Count > 0)
+                    {
+                        //lines selected
+                        selectionSet = CFLineFeatureSelection.SelectionSet;
+                    }
+                    
+                    else
+                    {
+                        if (DialogResult.OK != MessageBox.Show("You are about to run the add-in on the entire feature class, this could take a long time.  Proceeed?", "Long Operation", MessageBoxButtons.OKCancel))
+                            return;
+                    }
+
+                    FindCurves(CFLineLayer.Name, CFLineLayer.FeatureClass, selectionSet, whereClause, parcelsToLock, idxRADIUS, idxCENTERPTID, idxParcelIDFld, progressor);
+                    
 
                     if (Curves.Count == 0)
                     {
@@ -141,7 +185,7 @@ namespace ParcelFabricCurveByInference
                     }
 
                     if (withUpdate && Curves.Count > 0 && parcelsToLock.Count > 0)
-                        UpdateCurves(pCadFabric, pFabricLinesFC, Curves, parcelsToLock, progressor);
+                        UpdateCurves(pCadFabric, CFLineLayer.FeatureClass, Curves, parcelsToLock, progressor);
 
                 }
                 catch (Exception ex)
@@ -154,6 +198,10 @@ namespace ParcelFabricCurveByInference
                 }
                 finally
                 {
+                    if (relationshipClass != null)
+                        Marshal.ReleaseComObject(relationshipClass);
+                    if (relatedSelectionSet != null)
+                        Marshal.ReleaseComObject(relatedSelectionSet);
                 }
             }
             finally
@@ -406,78 +454,21 @@ namespace ParcelFabricCurveByInference
 
         #region Access
 
-        bool GetFabricFromMap(IMap InMap, out ICadastralFabric Fabric)
-        {//this code assumes only one fabric in the map, and will get the first that it finds.
-            //Used when not in an edit session. TODO: THis could return an array of fabrics
-            Fabric = null;
-            for (int idx = 0; idx <= (InMap.LayerCount - 1); idx++)
-            {
-                ILayer pLayer = InMap.get_Layer(idx);
-                if (GetFabricFromLayer(pLayer, out Fabric))
-                    return true;
-            }
-            return false;
-        }
-        private bool GetFabricFromLayer(ILayer Layer, out ICadastralFabric Fabric)
+        private List<ICadastralFabricLayer> GetFabricLayers(IMap Map)
         {
-            //interrogates a layer and returns it's source fabric if it is a fabric layer
+            List<ICadastralFabricLayer> ret = new List<ICadastralFabricLayer>();
 
-            ICompositeLayer pCompLyr = Layer as ICompositeLayer;
-            if (pCompLyr != null)
+            IEnumLayer pEnumLayer = Map.get_Layers(null, true);
+            ILayer pLayer;
+            while ((pLayer = pEnumLayer.Next()) != null)
             {
-                for (int i = 0; i <= pCompLyr.Count; i++)
-                    if (GetFabricFromLayer(pCompLyr.get_Layer(i), out Fabric))
-                        return true;
+                ICadastralFabricLayer pCFLayer = pLayer as ICadastralFabricLayer;
+                if (pCFLayer != null)
+                    ret.Add(pCFLayer);
             }
-
-            ICadastralFabricLayer pCFLayer = Layer as ICadastralFabricLayer;
-            if (pCFLayer != null)
-            {
-                Fabric = pCFLayer.CadastralFabric;
-                return true;
-            }
-
-            ICadastralFabricSubLayer pCFSubLyr = Layer as ICadastralFabricSubLayer;
-            if (pCFSubLyr != null)
-            {
-                Fabric = pCFSubLyr.CadastralFabric;
-                return true;
-            }
-
-            Fabric = null;
-            return false;
+            return ret;
         }
-
-        bool GetFabricSubLayers(IMap Map, esriCadastralFabricTable FabricSubClass, out IArray CFParcelFabSubLayers)
-        {
-            ICadastralFabricSubLayer pCFSubLyr = null;
-            IArray CFParcelFabricSubLayers2 = new ArrayClass();
-            IFeatureLayer pParcelFabricSubLayer = null;
-            UID pId = new UIDClass();
-            pId.Value = "{E156D7E5-22AF-11D3-9F99-00C04F6BC78E}";
-            IEnumLayer pEnumLayer = Map.get_Layers(pId, true);
-            pEnumLayer.Reset();
-            ILayer pLayer = pEnumLayer.Next();
-            while (pLayer != null)
-            {
-                if (pLayer is ICadastralFabricSubLayer)
-                {
-                    pCFSubLyr = (ICadastralFabricSubLayer)pLayer;
-                    if (pCFSubLyr.CadastralTableType == FabricSubClass)
-                    {
-                        pParcelFabricSubLayer = (IFeatureLayer)pCFSubLyr;
-                        CFParcelFabricSubLayers2.Add(pParcelFabricSubLayer);
-                    }
-                }
-                pLayer = pEnumLayer.Next();
-            }
-            CFParcelFabSubLayers = CFParcelFabricSubLayers2;
-            if (CFParcelFabricSubLayers2.Count > 0)
-                return true;
-            else
-                return false;
-        }
-
+        
         #endregion
 
         #region feature updating
