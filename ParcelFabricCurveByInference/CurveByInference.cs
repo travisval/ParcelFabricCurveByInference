@@ -1229,7 +1229,7 @@ namespace ParcelFabricCurveByInference
                 ret = 2;
             }
 
-            double dist3 = ((IProximityOperator)pFoundLineAsPolyCurve.FromPoint).ReturnDistance(inPolycurve.ToPoint);
+            double dist3 = ((IProximityOperator)pFoundLineAsPolyCurve.ToPoint).ReturnDistance(inPolycurve.FromPoint);
             if(dist3 < 0.005)
                 return (RelativeOrientation)3;
             if (dist3 < dist)
@@ -1238,7 +1238,7 @@ namespace ParcelFabricCurveByInference
                 ret = 3;
             }
 
-            double dist4 = ((IProximityOperator)pFoundLineAsPolyCurve.FromPoint).ReturnDistance(inPolycurve.ToPoint);
+            double dist4 = ((IProximityOperator)pFoundLineAsPolyCurve.FromPoint).ReturnDistance(inPolycurve.FromPoint);
             if (dist4 < dist)
                 ret = 4;
 
