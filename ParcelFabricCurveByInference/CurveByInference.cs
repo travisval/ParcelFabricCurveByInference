@@ -723,7 +723,10 @@ namespace ParcelFabricCurveByInference
             System.Diagnostics.Debug.Print(groupsTangent.Count().ToString());
             System.Diagnostics.Debug.Print(groupsTangentAndCP.Count().ToString());
 
-            if (groupsTangent.Count() == 1 && groupsTangentAndCP.Count() == 1)
+            bool HasStartTangents = inferredCurve.TangentCurves.Any(w => w.Orientation == RelativeOrientation.To_From || w.Orientation == RelativeOrientation.To_To);
+            bool HasEndTangents = inferredCurve.TangentCurves.Any(w => w.Orientation == RelativeOrientation.From_To || w.Orientation == RelativeOrientation.From_From);
+
+            if (groupsTangent.Count() == 1 && groupsTangentAndCP.Count() == 1 && HasStartTangents && HasEndTangents)
             { //if there is only 1 of each group, then there are no ambiguities for the tangent or the center point
  
                 IGrouping<RelatedCurve, RelatedCurve> d1 = groupsTangentAndCP.ElementAt(0);
