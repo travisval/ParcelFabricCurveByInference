@@ -48,7 +48,7 @@ namespace ParcelFabricCurveByInferenceTest
             //    aoInitialize.Shutdown();
         }
 
-        public static CurveByInference RunTest(String FeatureDatasetName, String CadastralFabricName, string OrderBy = null, String GDBPath = null)
+        public static CurveByInference RunTest(String FeatureDatasetName, String CadastralFabricName, string whereClause = null, string OrderBy = null, String GDBPath = null)
         {
             if (String.IsNullOrEmpty(GDBPath))
                 GDBPath = baseGeodatabasePath;
@@ -75,7 +75,7 @@ namespace ParcelFabricCurveByInferenceTest
             HashSet<int> parcelHash = new HashSet<int>();
 
             CurveByInference curveByInference = new CurveByInference() { messageBox = new MyMessageBox() };
-            curveByInference.FindCurves("test", featureClass, null, null, parcelHash, idxRADIUS, idxCENTERPTID, idxParcelIDFld, new myProgessor());
+            curveByInference.FindCurves("test", featureClass, null, whereClause, parcelHash, idxRADIUS, idxCENTERPTID, idxParcelIDFld, new myProgessor());
 
             return curveByInference;
         }
@@ -365,7 +365,7 @@ namespace ParcelFabricCurveByInferenceTest
         {
             StringBuilder strBuilder = new StringBuilder();
 
-            strBuilder.Append("List<InferredCurve> expectedResults = new List<InferredCurve>() { \n");
+            strBuilder.Append("List<InferredCurve> expectedResults = new List<InferredCurve>() { " + Environment.NewLine);
             strBuilder.Append(String.Join(",\n", (from c in result select GenerateConstructorStatment_Curve(c)).ToArray()));
             strBuilder.Append("};");
             return strBuilder.ToString();
@@ -374,16 +374,16 @@ namespace ParcelFabricCurveByInferenceTest
         private static object GenerateConstructorStatment_Curve(InferredCurve curve)
         {
             StringBuilder strBuilder = new StringBuilder();
-            strBuilder.Append(String.Concat("     new InferredCurve(",curve.ObjectID,", \"test\", new List<RelatedCurve>() {"));
-            strBuilder.Append(String.Join(",\n", (from r in curve.TangentCurves select String.Format("          new RelatedCurve({0}, {1}, {2}, RelationTypes.Tangent)", r.ObjectID, r.Radius, r.CenterpointID)).ToArray()));
+            strBuilder.Append(String.Concat("     new InferredCurve(", curve.ObjectID, ", \"test\", new List<RelatedCurve>() {" + Environment.NewLine));
+            strBuilder.Append(String.Join("," + Environment.NewLine, (from r in curve.TangentCurves select String.Format("          new RelatedCurve({0}, {1}, {2}, RelationTypes.Tangent)", r.ObjectID, r.Radius, r.CenterpointID)).ToArray()));
             strBuilder.Append("        })");
-                    
-            strBuilder.Append("{");
-            if(curve.Accepted != null) 
-                strBuilder.AppendFormat("Accepted = new RelatedCurve({0}, {1}, {2}, RelationTypes.Tangent), \n", curve.Accepted.ObjectID, curve.Accepted.Radius, curve.Accepted.CenterpointID);
-  
-            strBuilder.Append(" ParallelCurves = new List<RelatedCurve>() {");
-            strBuilder.Append(String.Join(",\n", (from r in curve.ParallelCurves select String.Format("          new RelatedCurve({0}, {1}, {2}, RelationTypes.Tangent)", r.ObjectID, r.Radius, r.CenterpointID)).ToArray()));
+
+            strBuilder.Append("{" + Environment.NewLine);
+            if(curve.Accepted != null)
+                strBuilder.AppendFormat("       Accepted = new RelatedCurve({0}, {1}, {2}, RelationTypes.Tangent), " + Environment.NewLine, curve.Accepted.ObjectID, curve.Accepted.Radius, curve.Accepted.CenterpointID);
+
+            strBuilder.Append("       ParallelCurves = new List<RelatedCurve>() {" + Environment.NewLine);
+            strBuilder.Append(String.Join("," + Environment.NewLine, (from r in curve.ParallelCurves select String.Format("               new RelatedCurve({0}, {1}, {2}, RelationTypes.Tangent)", r.ObjectID, r.Radius, r.CenterpointID)).ToArray()));
             strBuilder.Append("        }}");
 
             return strBuilder.ToString();
