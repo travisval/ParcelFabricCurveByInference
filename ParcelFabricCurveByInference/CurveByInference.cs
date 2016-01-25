@@ -712,12 +712,13 @@ namespace ParcelFabricCurveByInference
 
             var groupsTangent = inferredCurve.TangentCurves.GroupBy(item => Math.Round(item.Radius, 2)).Where(group => group.Skip(1).Any());
             var groupsTangentAndCP = inferredCurve.TangentCurves.GroupBy(item => item, relatedCurveComparer).Where(group => group.Skip(1).Any());
-
+            
             System.Diagnostics.Debug.Print(groupsTangent.Count().ToString());
             System.Diagnostics.Debug.Print(groupsTangentAndCP.Count().ToString());
 
             if (groupsTangent.Count() == 1 && groupsTangentAndCP.Count() == 1)
             { //if there is only 1 of each group, then there are no ambiguities for the tangent or the center point
+ 
                 IGrouping<RelatedCurve, RelatedCurve> d1 = groupsTangentAndCP.ElementAt(0);
                 inferredCurve.Accepted = d1.Key;
                 return;
@@ -791,7 +792,11 @@ namespace ParcelFabricCurveByInference
             //search for records that intersect these perpendicular geometries
 
             ISpatialFilter spatialFilter = (ISpatialFilter)new SpatialFilter();
-            spatialFilter.WhereClause = WhereClause;
+            //spatialFilter.WhereClause = WhereClause;
+            if (String.IsNullOrEmpty(WhereClause))
+                spatialFilter.WhereClause = "CenterPointID is not null and Radius is not null and Radius <> 0";
+            else
+                spatialFilter.WhereClause = string.Concat(WhereClause, " and CenterPointID is not null and Radius is not null and Radius <> 0");
             spatialFilter.SpatialRel = esriSpatialRelEnum.esriSpatialRelIntersects;
             spatialFilter.SearchOrder = esriSearchOrder.esriSearchOrderSpatial;
 
