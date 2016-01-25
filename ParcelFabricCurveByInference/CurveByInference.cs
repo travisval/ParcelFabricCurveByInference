@@ -282,7 +282,7 @@ namespace ParcelFabricCurveByInference
                     //}
 
                     //query near lines
-                    List<RelatedCurve> sCurveInfoFromNeighbours = GetTangentCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "", idxRADIUS, idxCENTERPTID, pSeg.Length);
+                    List<RelatedCurve> sCurveInfoFromNeighbours = GetTangentCurveMatchFeatures(pFabricLinesFC, pLineFeat, (IPolycurve)pGeom, "", idxRADIUS, idxCENTERPTID, pSeg.Length);
                                 
                     if(sCurveInfoFromNeighbours.Count > 0)
                     //if (HasTangentCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "", pSeg.Length, out iFoundTangent, ref sCurveInfoFromNeighbours))
@@ -290,13 +290,20 @@ namespace ParcelFabricCurveByInference
                         //lstLineIds.Add(pLineFeat.OID);
                         InferredCurve curve = new InferredCurve(pLineFeat.OID, Name, sCurveInfoFromNeighbours);
                         Curves.Add(curve);
- 
-                        //if there's only one tangent look further afield
-                        if (curve.TangentCurves.Count == 1)
-                            curve.ParallelCurves = GetParallelCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "");
 
-                        //Determin if there is enough information to actually set the radius and centerpoint
-                        RefineToBestRadiusAndCenterPoint(curve);
+                        if (curve.TangentCurves[0].Orientation == RelativeOrientation.Same || curve.TangentCurves[0].Orientation == RelativeOrientation.Reverse)
+                        {
+                            curve.Accepted = curve.TangentCurves[0];
+                        }
+                        else
+                        {
+                            //if there's only one tangent look further afield
+                            if (curve.TangentCurves.Count == 1)
+                                curve.ParallelCurves = GetParallelCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "");
+
+                            //Determin if there is enough information to actually set the radius and centerpoint
+                            RefineToBestRadiusAndCenterPoint(curve);
+                        }
 
                         //if the curve has an accepted curve (ie, it's a candidate to be changed), record the parcel id
                         if (curve.Accepted != null)
@@ -941,7 +948,7 @@ namespace ParcelFabricCurveByInference
             return CurveInfoFromNeighbours;
         }
 
-        public List<RelatedCurve> GetTangentCurveMatchFeatures(IFeatureClass FeatureClass, IPolycurve inPolycurve, string WhereClause,
+        public List<RelatedCurve> GetTangentCurveMatchFeatures(IFeatureClass FeatureClass, IFeature inFeature, IPolycurve inPolycurve, string WhereClause,
                                                 int idxRadius, int idxCenterPointID,
                                                 double SegementLength)
             //double AngleToleranceTangentCompareInDegrees, double StraightLinesBreakLessThanInDegrees, 
@@ -1038,6 +1045,12 @@ namespace ParcelFabricCurveByInference
 
             while ((foundFeature = pFeatCursLines.NextFeature()) != null)
             {
+                if (inFeature.OID == foundFeature.OID)
+                {
+                    Marshal.ReleaseComObject(foundFeature);
+                    continue;
+                }
+
                 IGeometry foundLineGeom = foundFeature.ShapeCopy;
                 IPolycurve foundPolyCurve = foundLineGeom as IPolycurve;
                 RelativeOrientation iRelativeOrientation = GetRelativeOrientation(foundPolyCurve, inPolycurve);
@@ -1046,9 +1059,26 @@ namespace ParcelFabricCurveByInference
                 //iRelativeOrientation == 3 --> closest points are original FROM and found TO
                 //iRelativeOrientation == 4 --> closest points are original FROM and found FROM
 
-                //if the feature has no radius attribute, skip.
                 double foundRadius = (foundFeature.get_Value(idxRadius) is DBNull) ? 0 : (double)foundFeature.get_Value(idxRadius);
                 int? foundCentriodID = (foundFeature.get_Value(idxCenterPointID) is DBNull) ? null : (int?)foundFeature.get_Value(idxCenterPointID);
+
+                //if the found feature has the same start and endpoints, assume that the feature is the same.  If that feature has radius and centerpoint information
+                //assume that feature is unchanged and update the current feature with the found feature.
+                if (iRelativeOrientation == RelativeOrientation.Same || iRelativeOrientation == RelativeOrientation.Reverse)
+                {
+                    if (foundRadius > 0 && foundCentriodID.HasValue)
+                    {
+                        double adjustedRadius = iRelativeOrientation == RelativeOrientation.Same ? foundRadius : -1 * foundRadius;
+
+                        CurveInfoFromNeighbours.Clear();
+                        CurveInfoFromNeighbours.Add(new RelatedCurve(foundFeature.OID, adjustedRadius, foundCentriodID.Value, RelationTypes.Same) { Orientation = iRelativeOrientation });
+                        Marshal.ReleaseComObject(foundFeature);
+                        Marshal.FinalReleaseComObject(pFeatCursLines);
+                        return CurveInfoFromNeighbours;
+                    }
+                    Marshal.ReleaseComObject(foundFeature);
+                    continue;
+                }
 
                 /******************************
                  * 
@@ -1211,7 +1241,7 @@ namespace ParcelFabricCurveByInference
             return CurveInfoFromNeighbours;
         }
 
-        public enum RelativeOrientation { To_To = 1, To_From = 2, From_To = 3, From_From = 4 }
+        public enum RelativeOrientation { To_To = 1, To_From = 2, From_To = 3, From_From = 4, Same = 5, Reverse = 6 }
         private RelativeOrientation GetRelativeOrientation(IPolycurve pFoundLineAsPolyCurve, IPolycurve inPolycurve)
         {
             //iRelativeOrientation == 1 --> closest points are original TO and found TO
@@ -1219,33 +1249,53 @@ namespace ParcelFabricCurveByInference
             //iRelativeOrientation == 3 --> closest points are original FROM and found TO
             //iRelativeOrientation == 4 --> closest points are original FROM and found FROM
 
-            int ret = 1;
-            double dist = ((IProximityOperator)pFoundLineAsPolyCurve.ToPoint).ReturnDistance(inPolycurve.ToPoint);
-            if (dist < 0.005) 
-                return (RelativeOrientation)ret;
+            RelativeOrientation ret = RelativeOrientation.To_To;
+            double min = 0;
+
+            double To_To = min = ((IProximityOperator)pFoundLineAsPolyCurve.ToPoint).ReturnDistance(inPolycurve.ToPoint);
+            double From_From = ((IProximityOperator)pFoundLineAsPolyCurve.FromPoint).ReturnDistance(inPolycurve.FromPoint);
+
+            //Check to see if it is the same line
+            if (To_To < 0.005 && From_From < 0.005)
+                return (RelativeOrientation.Same);
             
+            //short cuts
+            if (To_To < 0.005)
+                return RelativeOrientation.To_To;
+            if (From_From < 0.005)
+                return RelativeOrientation.From_From;
 
-            double dist2 = ((IProximityOperator)pFoundLineAsPolyCurve.FromPoint).ReturnDistance(inPolycurve.ToPoint);
-            if(dist2 < 0.005)
-                return (RelativeOrientation)2;
-            if (dist2 < dist)
+            //check to see whats closer
+            if (From_From < To_To)
             {
-                dist = dist2;
-                ret = 2;
+                ret = RelativeOrientation.From_From;
+                min = From_From;
             }
 
-            double dist3 = ((IProximityOperator)pFoundLineAsPolyCurve.ToPoint).ReturnDistance(inPolycurve.FromPoint);
-            if(dist3 < 0.005)
-                return (RelativeOrientation)3;
-            if (dist3 < dist)
-            {
-                dist = dist3;
-                ret = 3;
-            }
+            double From_To = ((IProximityOperator)pFoundLineAsPolyCurve.ToPoint).ReturnDistance(inPolycurve.FromPoint);
+            double To_From = ((IProximityOperator)pFoundLineAsPolyCurve.FromPoint).ReturnDistance(inPolycurve.ToPoint);
 
-            double dist4 = ((IProximityOperator)pFoundLineAsPolyCurve.FromPoint).ReturnDistance(inPolycurve.FromPoint);
-            if (dist4 < dist)
-                ret = 4;
+            //Check to see if it is the same line
+            if (From_To < 0.005 && To_From < 0.005)
+                return (RelativeOrientation.Reverse);
+
+            //short cuts
+            if (From_To < 0.005)
+                return RelativeOrientation.From_To;
+            if (To_From < 0.005)
+                return RelativeOrientation.To_From;
+
+            //check to see whats closer
+            if (From_To < min)
+            {
+                ret = RelativeOrientation.From_To;
+                min = From_To;
+            }
+            //check to see whats closer
+            if (To_From < min)
+            {
+                ret = RelativeOrientation.To_From;
+            }
 
             return (RelativeOrientation)ret;
         }

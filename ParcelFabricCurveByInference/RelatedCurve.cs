@@ -5,7 +5,7 @@ using System.Text;
 
 namespace ParcelFabricCurveByInference
 {
-    public enum RelationTypes { Tangent, Parallel }
+    public enum RelationTypes { Tangent, Parallel, Same, Reverse }
     public class RelatedCurve
     {
         public int ObjectID { get; set; }
