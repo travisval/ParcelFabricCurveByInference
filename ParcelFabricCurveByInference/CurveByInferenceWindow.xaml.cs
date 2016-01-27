@@ -122,6 +122,10 @@ namespace ParcelFabricCurveByInference
 
 
                 IEnvelope extent = feature.Shape.Envelope;
+                if (extent.Height == 0)
+                    extent.Height = extent.Width / 4;
+                if (extent.Width == 0)
+                    extent.Width = extent.Height / 4;
                 extent.Expand(1.2, 1.2, true);
                 ArcMap.Document.ActivatedView.Extent = extent;
                 ArcMap.Document.ActivatedView.Refresh();
@@ -162,6 +166,11 @@ namespace ParcelFabricCurveByInference
                     extent.Union(relatedFeature.Extent);
                     Marshal.ReleaseComObject(relatedFeature);
                 }
+                if (extent.Height == 0)
+                    extent.Height = extent.Width / 4;
+                if (extent.Width == 0)
+                    extent.Width = extent.Height / 4;
+
                 extent.Expand(1.2, 1.2, true);
 
                 ArcMap.Document.ActivatedView.Extent = extent;

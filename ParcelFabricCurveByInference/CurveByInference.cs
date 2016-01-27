@@ -101,7 +101,8 @@ namespace ParcelFabricCurveByInference
 
                 IFeatureLayer CFLineLayer = CFLayer.get_CadastralSubLayer(esriCadastralFabricRenderer.esriCFRLines);
                 IFeatureLayer CFParcelLayer = CFLayer.get_CadastralSubLayer(esriCadastralFabricRenderer.esriCFRParcels);
-                
+
+                IFeatureClass centerpointFC = (IFeatureClass)pCadFabric.get_CadastralTable(esriCadastralFabricTable.esriCFTPoints);
                 try
                 {
                     
@@ -177,7 +178,7 @@ namespace ParcelFabricCurveByInference
                             return;
                     }
 
-                    FindCurves(CFLineLayer.Name, CFLineLayer.FeatureClass, selectionSet, whereClause, parcelsToLock, idxRADIUS, idxCENTERPTID, idxParcelIDFld, progressor);
+                    FindCurves(CFLineLayer.Name, CFLineLayer.FeatureClass, centerpointFC, selectionSet, whereClause, parcelsToLock, idxRADIUS, idxCENTERPTID, idxParcelIDFld, progressor);
                     
 
                     if (Curves.Count == 0)
@@ -213,7 +214,7 @@ namespace ParcelFabricCurveByInference
             }
         }
 
-        public void FindCurves(String Name, IFeatureClass pFabricLinesFC, ISelectionSet selSet, string whereClause, HashSet<int> affectedParcels, int idxRADIUS, int idxCENTERPTID, int idxParcelIDFld, myProgessor progressor)
+        public void FindCurves(String Name, IFeatureClass pFabricLinesFC, IFeatureClass CenterpointFC, ISelectionSet selSet, string whereClause, HashSet<int> affectedParcels, int idxRADIUS, int idxCENTERPTID, int idxParcelIDFld, myProgessor progressor)
         {
             IQueryFilter qFilter = new QueryFilter();
             if (String.IsNullOrEmpty(whereClause))
@@ -282,12 +283,12 @@ namespace ParcelFabricCurveByInference
                     //}
 
                     //query near lines
-                    List<RelatedCurve> sCurveInfoFromNeighbours = GetTangentCurveMatchFeatures(pFabricLinesFC, pLineFeat, (IPolycurve)pGeom, "", idxRADIUS, idxCENTERPTID, pSeg.Length);
+                    List<RelatedLine> tangentLines;
+                    List<RelatedCurve> sCurveInfoFromNeighbours = GetTangentCurveMatchFeatures(pFabricLinesFC, pLineFeat, (IPolycurve)pGeom, "", idxRADIUS, idxCENTERPTID, pSeg.Length, out tangentLines);
                                 
                     if(sCurveInfoFromNeighbours.Count > 0)
                     //if (HasTangentCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "", pSeg.Length, out iFoundTangent, ref sCurveInfoFromNeighbours))
                     {
-                        //lstLineIds.Add(pLineFeat.OID);
                         InferredCurve curve = new InferredCurve(pLineFeat.OID, Name, sCurveInfoFromNeighbours);
                         Curves.Add(curve);
 
@@ -300,9 +301,19 @@ namespace ParcelFabricCurveByInference
                             //if there's only one tangent look further afield
                             if (curve.TangentCurves.Count == 1)
                                 curve.ParallelCurves = GetParallelCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "");
-
+                            
                             //Determin if there is enough information to actually set the radius and centerpoint
-                            RefineToBestRadiusAndCenterPoint(curve);
+                            RefineToBestRadiusAndCenterPoint(curve, CenterpointFC);
+
+                            if (curve.Accepted == null && tangentLines.Count > 0)
+                            {
+                                IPolyline polyLine = (IPolyline)pGeom;
+                                curve.FromPoint = polyLine.FromPoint;
+                                curve.ToPoint = polyLine.ToPoint;
+                                curve.TangentLines = tangentLines;
+
+                                RefineToBestRadiusAndCenterPoint(curve, CenterpointFC);
+                            }
                         }
 
                         //if the curve has an accepted curve (ie, it's a candidate to be changed), record the parcel id
@@ -697,41 +708,99 @@ namespace ParcelFabricCurveByInference
         #region Inference
 
         RelatedCurveComparer relatedCurveComparer = new RelatedCurveComparer();
-        void RefineToBestRadiusAndCenterPoint(InferredCurve inferredCurve)
+        bool evaluateParallelCurves(InferredCurve inferredCurve, RelatedCurve curve)
         {
-            if (inferredCurve.TangentCurves.Count == 1 && inferredCurve.ParallelCurves.Count > 0)
-            {//only one radius found, so search the parallel offsets for one conformer
-                bool bHasConfirmer = false;
-                foreach (RelatedCurve dd in inferredCurve.ParallelCurves)
+            bool bHasConfirmer = false;
+            foreach (RelatedCurve dd in inferredCurve.ParallelCurves)
+            {
+                if (Math.Abs(dd.Radius - curve.Radius) < 0.5)
                 {
-                    if (Math.Abs(dd.Radius - inferredCurve.TangentCurves[0].Radius) < 0.5)
-                    {
-                        bHasConfirmer = true;
-                        break;
-                    }
+                    bHasConfirmer = true;
+                    break;
                 }
-                if (bHasConfirmer)
-                {
-                    inferredCurve.Accepted = inferredCurve.TangentCurves[0];
-                }
-                return;
             }
+            if (bHasConfirmer)
+            {
+                inferredCurve.Accepted = inferredCurve.TangentCurves[0];
+                return true;
+            }
+            return false;
+        }
+        bool evaluateTrangent(InferredCurve inferredCurve, RelatedCurve curve)
+        {
+            //double angle = Math.Atan((inferredCurve.FromPoint.Y - inferredCurve.ToPoint.Y) / (inferredCurve.FromPoint.X - inferredCurve.ToPoint.X));
+            //double length = ((IProximityOperator)inferredCurve.FromPoint).ReturnDistance(inferredCurve.ToPoint);
+            
+            ILine line = new Line() { FromPoint = inferredCurve.FromPoint, ToPoint = inferredCurve.ToPoint };
+            double halfdelta = Math.Asin(line.Length / 2 / curve.Radius);
+            double newAngle = line.Angle + halfdelta;
 
+            bool bHasConfirmer = false;
+            foreach (RelatedLine tangent in inferredCurve.TangentLines)
+            {
+                if (Math.Abs(tangent.Slope - newAngle) < 0.005)
+                {
+                    bHasConfirmer = true;
+                    break;
+                }
+            }
+            if (bHasConfirmer)
+            {
+                inferredCurve.Accepted = inferredCurve.TangentCurves[0];
+                return true;
+            }
+            return false;
+        }
+        void RefineToBestRadiusAndCenterPoint(InferredCurve inferredCurve, IFeatureClass CenterpointFC)
+        {
+            //only one radius found
+            if (inferredCurve.TangentCurves.Count == 1)
+            {
+                //search the parallel offsets for one conformer, if found return
+                if (inferredCurve.ParallelCurves.Count > 0 && evaluateParallelCurves(inferredCurve, inferredCurve.TangentCurves[0]))
+                {
+                    return;
+                }
+                //search the tagent lines for one conformer, if found return
+                if (inferredCurve.TangentLines.Count > 0 && evaluateTrangent(inferredCurve, inferredCurve.TangentCurves[0]))
+                {
+                    return;
+                }
+            }
+            
             var groupsTangent = inferredCurve.TangentCurves.GroupBy(item => Math.Round(item.Radius, 2)).Where(group => group.Skip(1).Any());
             var groupsTangentAndCP = inferredCurve.TangentCurves.GroupBy(item => item, relatedCurveComparer).Where(group => group.Skip(1).Any());
             
-            System.Diagnostics.Debug.Print(groupsTangent.Count().ToString());
-            System.Diagnostics.Debug.Print(groupsTangentAndCP.Count().ToString());
+            //System.Diagnostics.Debug.Print(groupsTangent.Count().ToString());
+            //System.Diagnostics.Debug.Print(groupsTangentAndCP.Count().ToString());
 
             bool HasStartTangents = inferredCurve.TangentCurves.Any(w => w.Orientation == RelativeOrientation.To_From || w.Orientation == RelativeOrientation.To_To);
             bool HasEndTangents = inferredCurve.TangentCurves.Any(w => w.Orientation == RelativeOrientation.From_To || w.Orientation == RelativeOrientation.From_From);
 
-            if (groupsTangent.Count() == 1 && groupsTangentAndCP.Count() == 1 && HasStartTangents && HasEndTangents)
-            { //if there is only 1 of each group, then there are no ambiguities for the tangent or the center point
- 
+            //if there is only 1 of each group, then there are no ambiguities for the tangent or the center point
+            if (groupsTangent.Count() == 1 && groupsTangentAndCP.Count() == 1)
+            {
                 IGrouping<RelatedCurve, RelatedCurve> d1 = groupsTangentAndCP.ElementAt(0);
-                inferredCurve.Accepted = d1.Key;
-                return;
+                
+                //if there are curves on either side of the query feature
+                if (HasStartTangents && HasEndTangents)
+                {
+                    inferredCurve.Accepted = d1.Key;
+                    return;
+                }
+                if (inferredCurve.TangentCurves.Count > 0)
+                {
+                    //search the parallel offsets for one conformer, if found return
+                    if (inferredCurve.ParallelCurves.Count > 0 && evaluateParallelCurves(inferredCurve, d1.Key))
+                    {
+                        return;
+                    }
+                    //search the tagent lines for one conformer, if found return
+                    if (inferredCurve.TangentLines.Count > 0 && evaluateTrangent(inferredCurve, d1.Key))
+                    {
+                        return;
+                    }
+                }
             }
             else if (groupsTangent.Count() == 1 && groupsTangentAndCP.Count() > 1)
             {//if there is only 1 tangent, but more than one center point then there are center points to merge
@@ -953,12 +1022,13 @@ namespace ParcelFabricCurveByInference
 
         public List<RelatedCurve> GetTangentCurveMatchFeatures(IFeatureClass FeatureClass, IFeature inFeature, IPolycurve inPolycurve, string WhereClause,
                                                 int idxRadius, int idxCenterPointID,
-                                                double SegementLength)
+                                                double SegementLength, out List<RelatedLine> tangentLines)
             //double AngleToleranceTangentCompareInDegrees, double StraightLinesBreakLessThanInDegrees, 
             //double MaximumDeltaInDegrees, double ExcludeTangentsShorterThan,
             //                                     out int outFoundTangentCurvesCount, ref List<RelatedCurve> CurveInfoFromNeighbours)
         {
             List<RelatedCurve> CurveInfoFromNeighbours = new List<RelatedCurve>();
+            tangentLines = new List<RelatedLine>();
 
             ILine pOriginalChord = (ILine)new Line();
             pOriginalChord.PutCoords(inPolycurve.FromPoint, inPolycurve.ToPoint);
@@ -1157,11 +1227,37 @@ namespace ParcelFabricCurveByInference
                 {
                     if (lstLargeBreak.Contains(iRelativeOrientation))
                         bHasTangentStraightLineAtJunction = true;
-                     
                 }
 
                 if (!foundCentriodID.HasValue || foundRadius == 0 || foundPolyCurve.Length < ExcludeTangentsShorterThan)
                 {
+                    //staight line
+                    if (foundPolyCurve.Length > ExcludeTangentsShorterThan)
+                    {
+                        IPolyline polyline = (IPolyline4)foundFeature.ShapeCopy;
+                        ISegmentCollection collection = (ISegmentCollection)polyline;
+                        ISegment segement = collection.get_Segment(collection.SegmentCount - 1);
+                        ILine line = new Line();
+                        
+                        if (iRelativeOrientation == RelativeOrientation.To_From)
+                        {
+                            polyline.QueryTangent(esriSegmentExtension.esriNoExtension, 0, true, 1.0, line);
+                        }
+                        if (iRelativeOrientation == RelativeOrientation.From_To)
+                        {
+                            inPolycurve.QueryTangent(esriSegmentExtension.esriNoExtension, 1, true, 1.0, line);
+                        }
+                        else if (iRelativeOrientation == RelativeOrientation.To_To)
+                        {
+                            inPolycurve.QueryTangent(esriSegmentExtension.esriNoExtension, 0, true, 1.0, line);
+                        }
+                        if (iRelativeOrientation == RelativeOrientation.From_From)
+                        {   
+                            inPolycurve.QueryTangent(esriSegmentExtension.esriNoExtension, 1, true, 1.0, line);
+                        }
+
+                        tangentLines.Add(new RelatedLine(foundFeature.OID, line.Angle, iRelativeOrientation));
+                    }
                     //if the feature has a null centrpointID then skip.
                     Marshal.ReleaseComObject(foundFeature);
                     continue;

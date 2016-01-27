@@ -17,13 +17,14 @@ namespace ParcelFabricCurveByInferenceTest
         static ESRI.ArcGIS.esriSystem.IAoInitialize aoInitialize;
 
         static string baseGeodatabasePath;
+        static string baseDevGeodatabasePath;
         static IWorkspace workspace;
        
         [AssemblyInitialize()]
         public static void AssemblyInit(TestContext context)
         {
             baseGeodatabasePath = System.IO.Path.GetFullPath(System.IO.Path.Combine(context.TestDir, "..\\..\\UnitTestData.gdb"));
-
+            baseDevGeodatabasePath = System.IO.Path.GetFullPath(System.IO.Path.Combine(context.TestDir, "..\\..\\UnitTestDatasets.gdb"));
             if (!AOInitilialized)
             {
                 ESRI.ArcGIS.RuntimeManager.Bind(ESRI.ArcGIS.ProductCode.Desktop);
@@ -68,6 +69,8 @@ namespace ParcelFabricCurveByInferenceTest
 
             IFeatureClass featureClass = (IFeatureClass)cadFabric.get_CadastralTable(esriCadastralFabricTable.esriCFTLines);
 
+            IFeatureClass centerPointFeatureClass = (IFeatureClass)cadFabric.get_CadastralTable(esriCadastralFabricTable.esriCFTPoints);
+
             int idxParcelIDFld = featureClass.Fields.FindField("ParcelID");
             int idxCENTERPTID = featureClass.Fields.FindField("CenterPointID");
             int idxRADIUS = featureClass.Fields.FindField("Radius");
@@ -75,15 +78,40 @@ namespace ParcelFabricCurveByInferenceTest
             HashSet<int> parcelHash = new HashSet<int>();
 
             CurveByInference curveByInference = new CurveByInference() { messageBox = new MyMessageBox() };
-            curveByInference.FindCurves("test", featureClass, null, whereClause, parcelHash, idxRADIUS, idxCENTERPTID, idxParcelIDFld, new myProgessor());
+            curveByInference.FindCurves("test", featureClass, centerPointFeatureClass, null, whereClause, parcelHash, idxRADIUS, idxCENTERPTID, idxParcelIDFld, new myProgessor());
 
             return curveByInference;
         }
-        public static void AssertInferredCurvesAreEqual(System.Collections.ICollection expected, System.Collections.ICollection result)
-        {
-            Assert.AreEqual(expected.Count, result.Count, "List lengths should be equal");
 
-            CollectionAssert.AreEqual(expected, result);
+        public static CurveByInference RunFeatureClassTest(String featureDataset, String CenterpointFC, String LineFC, string whereClause = null, string OrderBy = null, String GDBPath = null)
+        {
+            if (String.IsNullOrEmpty(GDBPath))
+                GDBPath = baseDevGeodatabasePath;
+
+            if (!System.IO.Directory.Exists(GDBPath))
+                Assert.Inconclusive(String.Format("The path '{0}' can not be found", GDBPath));
+
+            //Load the geodatabase
+            IWorkspaceFactory workspaceFactory = new ESRI.ArcGIS.DataSourcesGDB.FileGDBWorkspaceFactory();
+            workspace = workspaceFactory.OpenFromFile(GDBPath, 0);
+
+            IFeatureWorkspace featureWorksapce = (IFeatureWorkspace)workspace;
+
+            IFeatureClassContainer featuredataset = (IFeatureClassContainer)featureWorksapce.OpenFeatureDataset(featureDataset);
+            
+            IFeatureClass featureClass = featuredataset.get_ClassByName(LineFC);
+            IFeatureClass centerpointFeatureClass = featuredataset.get_ClassByName(CenterpointFC);
+            
+            int idxParcelIDFld = featureClass.Fields.FindField("ParcelID");
+            int idxCENTERPTID = featureClass.Fields.FindField("CenterPointID");
+            int idxRADIUS = featureClass.Fields.FindField("Radius");
+
+            HashSet<int> parcelHash = new HashSet<int>();
+
+            CurveByInference curveByInference = new CurveByInference() { messageBox = new MyMessageBox() };
+            curveByInference.FindCurves("test", featureClass, centerpointFeatureClass, null, whereClause, parcelHash, idxRADIUS, idxCENTERPTID, idxParcelIDFld, new myProgessor());
+
+            return curveByInference;
         }
 
         [TestMethod]
@@ -359,6 +387,14 @@ namespace ParcelFabricCurveByInferenceTest
                         };
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, results);
+        }
+
+
+        public static void AssertInferredCurvesAreEqual(System.Collections.ICollection expected, System.Collections.ICollection result)
+        {
+            Assert.AreEqual(expected.Count, result.Count, "List lengths should be equal");
+
+            CollectionAssert.AreEqual(expected, result);
         }
 
         internal static string GenerateConstructorStatment(IEnumerable<InferredCurve> result)

@@ -119,11 +119,13 @@
     <Compile Include="MyProgressor.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RelatedCurve.cs" />
+    <Compile Include="RelatedLine.cs" />
   </ItemGroup>
   <ItemGroup>
     <AddInContent Include="Config.esriaddinx">
       <Generator>ArcGISAddInHostGenerator</Generator>
       <LastGenOutput>Config.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
     </AddInContent>
   </ItemGroup>
   <ItemGroup>

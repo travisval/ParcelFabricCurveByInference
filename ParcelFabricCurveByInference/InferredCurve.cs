@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.ComponentModel;
+using ESRI.ArcGIS.Geometry;
 
 namespace ParcelFabricCurveByInference
 {
@@ -11,6 +12,9 @@ namespace ParcelFabricCurveByInference
         public int ObjectID { get; set; }
         public string Description { get; set; }
         public string LayerName { get; private set; }
+
+        public IPoint FromPoint { get; set; }
+        public IPoint ToPoint { get; set; }
 
         public RelatedCurve _Accepted;
         public RelatedCurve Accepted { get { return _Accepted; } set { _Accepted = value; RaisePropertyChanged("Accepted", "SetVisibility", "ItemColor"); } }
@@ -24,6 +28,8 @@ namespace ParcelFabricCurveByInference
         public List<RelatedCurve> _ParallelCurves;
         public List<RelatedCurve> ParallelCurves { get { return _ParallelCurves; } set { _ParallelCurves = value; RaisePropertyChanged("ParallelCurves", "ParallelVisibility"); } }
         public System.Windows.Visibility ParallelVisibility { get { return (ParallelCurves == null || ParallelCurves.Count == 0) ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible; } }
+
+        public List<RelatedLine> TangentLines = new List<RelatedLine>();
 
         public string Header { get; set; }
         public System.Windows.Visibility SetVisibility { get { return (Accepted == null) ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible; } }
