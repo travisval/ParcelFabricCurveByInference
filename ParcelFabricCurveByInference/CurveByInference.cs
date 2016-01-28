@@ -25,6 +25,11 @@ namespace ParcelFabricCurveByInference
 
         public MyMessageBox messageBox = new FormsMessageBox();
 
+        public InferredCurve _SelectedItem;
+        public InferredCurve SelectedItem { 
+            get { return _SelectedItem; } 
+            set { _SelectedItem = value; RaisePropertyChanged("SelectedItem"); } }
+
         bool _Finished;
         public bool Finished { get { return _Finished; } set { _Finished = value; RaisePropertyChanged("Finished"); } }
         
@@ -738,7 +743,7 @@ namespace ParcelFabricCurveByInference
             bool bHasConfirmer = false;
             foreach (RelatedLine tangent in inferredCurve.TangentLines)
             {
-                if (Math.Abs(tangent.Slope - newAngle) < 0.005)
+                if (Math.Abs(tangent.Angle - newAngle) < 0.005)
                 {
                     bHasConfirmer = true;
                     break;
@@ -1008,7 +1013,7 @@ namespace ParcelFabricCurveByInference
                         dDerivedRadius = dDerivedRadius * dUnitSignChange;
 
                         //string sHarvestedCurveInfo = pFeat.OID.ToString() + "," + dDerivedRadius.ToString("#.000") + "," + centerpointID.ToString() + "," + dRadiusDiff.ToString("#.000");
-                        CurveInfoFromNeighbours.Add(new RelatedCurve(pFeat.OID, dDerivedRadius, centerpointID.Value, RelationTypes.Parallel));
+                        CurveInfoFromNeighbours.Add(new RelatedCurve(pFeat.OID, dDerivedRadius, centerpointID.Value, RelativeOrientation.Parallel));
                     }
                 }
 
@@ -1144,7 +1149,7 @@ namespace ParcelFabricCurveByInference
                         double adjustedRadius = iRelativeOrientation == RelativeOrientation.Same ? foundRadius : -1 * foundRadius;
 
                         CurveInfoFromNeighbours.Clear();
-                        CurveInfoFromNeighbours.Add(new RelatedCurve(foundFeature.OID, adjustedRadius, foundCentriodID.Value, RelationTypes.Same) { Orientation = iRelativeOrientation });
+                        CurveInfoFromNeighbours.Add(new RelatedCurve(foundFeature.OID, adjustedRadius, foundCentriodID.Value, iRelativeOrientation));
                         Marshal.ReleaseComObject(foundFeature);
                         Marshal.FinalReleaseComObject(pFeatCursLines);
                         return CurveInfoFromNeighbours;
@@ -1325,7 +1330,7 @@ namespace ParcelFabricCurveByInference
                     double inferredRadius = foundRadius * dUnitSignChange;
 
                     //string sHarvestedCurveInfo = foundFeature.OID.ToString() + "," + inferredRadius.ToString("#.000") + "," + foundCentriodID.ToString() + "," + "t";
-                    CurveInfoFromNeighbours.Add(new RelatedCurve(foundFeature.OID, inferredRadius, foundCentriodID.Value, RelationTypes.Tangent) { Orientation = iRelativeOrientation });
+                    CurveInfoFromNeighbours.Add(new RelatedCurve(foundFeature.OID, inferredRadius, foundCentriodID.Value, iRelativeOrientation));
                 }
                 Marshal.ReleaseComObject(foundFeature);
             }
@@ -1340,7 +1345,7 @@ namespace ParcelFabricCurveByInference
             return CurveInfoFromNeighbours;
         }
 
-        public enum RelativeOrientation { To_To = 1, To_From = 2, From_To = 3, From_From = 4, Same = 5, Reverse = 6 }
+        public enum RelativeOrientation { To_To = 1, To_From = 2, From_To = 3, From_From = 4, Same = 5, Reverse = 6, Parallel = 7}
         private RelativeOrientation GetRelativeOrientation(IPolycurve pFoundLineAsPolyCurve, IPolycurve inPolycurve)
         {
             //iRelativeOrientation == 1 --> closest points are original TO and found TO

@@ -7,6 +7,8 @@ using ESRI.ArcGIS.Geometry;
 
 namespace ParcelFabricCurveByInference
 {
+    public enum UpdateAction { Leave, Update }
+
     public class InferredCurve : INotifyPropertyChanged
     {
         public int ObjectID { get; set; }
@@ -17,19 +19,25 @@ namespace ParcelFabricCurveByInference
         public IPoint ToPoint { get; set; }
 
         public RelatedCurve _Accepted;
-        public RelatedCurve Accepted { get { return _Accepted; } set { _Accepted = value; RaisePropertyChanged("Accepted", "SetVisibility", "ItemColor"); } }
+        public RelatedCurve Accepted { get { return _Accepted; } set { _Accepted = value; Action = (value == null) ? UpdateAction.Leave : UpdateAction.Update;  RaisePropertyChanged("Accepted", "SetVisibility", "ItemColor"); } }
 
-        public System.Windows.Media.Brush ItemColor { get { return (Accepted == null) ? System.Windows.Media.Brushes.Black : System.Windows.Media.Brushes.Blue; } }
+        public UpdateAction _Action;
+        public UpdateAction Action { get { return _Action; } set { _Action = value; RaisePropertyChanged("Action"); } }
 
         public List<RelatedCurve> _TangentCurves;
-        public List<RelatedCurve> TangentCurves { get { return _TangentCurves; } set { _TangentCurves = value; RaisePropertyChanged("TangentCurves", "TangentVisibility"); } }
+        public List<RelatedCurve> TangentCurves { get { return _TangentCurves; } set { _TangentCurves = value; RaisePropertyChanged("TangentCurves", "TangentVisibility", "TangentCurveCount"); } }
         public System.Windows.Visibility TangentVisibility { get { return (TangentCurves == null || TangentCurves.Count == 0) ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible; } }
+        public int TangentCurveCount { get { return (TangentCurves == null) ? 0 : TangentCurves.Count; } } 
 
         public List<RelatedCurve> _ParallelCurves;
-        public List<RelatedCurve> ParallelCurves { get { return _ParallelCurves; } set { _ParallelCurves = value; RaisePropertyChanged("ParallelCurves", "ParallelVisibility"); } }
+        public List<RelatedCurve> ParallelCurves { get { return _ParallelCurves; } set { _ParallelCurves = value; RaisePropertyChanged("ParallelCurves", "ParallelVisibility", "ParallelCurveCount"); } }
         public System.Windows.Visibility ParallelVisibility { get { return (ParallelCurves == null || ParallelCurves.Count == 0) ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible; } }
+        public int ParallelCurveCount { get { return (ParallelCurves == null) ? 0 : ParallelCurves.Count; } } 
 
-        public List<RelatedLine> TangentLines = new List<RelatedLine>();
+        public List<RelatedLine> _TangentLines;
+        public List<RelatedLine> TangentLines { get { return _TangentLines; } set { _TangentLines = value; RaisePropertyChanged("TangentLines", "TangentLineVisibility", "TangentLineCount"); } }
+        public System.Windows.Visibility TangentLineVisibility { get { return (TangentLines == null || TangentLines.Count == 0) ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible; } }
+        public int TangentLineCount { get { return (TangentLines == null) ? 0 : TangentLines.Count; } } 
 
         public string Header { get; set; }
         public System.Windows.Visibility SetVisibility { get { return (Accepted == null) ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible; } }
@@ -42,6 +50,7 @@ namespace ParcelFabricCurveByInference
 
             TangentCurves = tangentCurves;
             ParallelCurves = new List<RelatedCurve>();
+            TangentLines = new List<RelatedLine>();
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -65,6 +74,10 @@ namespace ParcelFabricCurveByInference
 
         static RelatedCurveComparer relativeComparer = new RelatedCurveComparer(false);
         static RelatedCurveComparer relativeComparerWithOID = new RelatedCurveComparer(true);
+
+        static RelatedLineComparer relativeLineComparer = new RelatedLineComparer(false);
+        static RelatedLineComparer relativeLineComparerWithOID = new RelatedLineComparer(true);
+
         public override bool Equals(object obj)
         {
             InferredCurve other = obj as InferredCurve;
@@ -90,6 +103,9 @@ namespace ParcelFabricCurveByInference
                 return false;
 
             if (!this.ParallelCurves.OrderBy(i => i.ObjectID).SequenceEqual(other.ParallelCurves.OrderBy(i => i.ObjectID), relativeComparerWithOID))
+                return false;
+
+            if (!this.TangentLines.OrderBy(i => i.ObjectID).SequenceEqual(other.TangentLines.OrderBy(i => i.ObjectID), relativeLineComparerWithOID))
                 return false;
 
             return true;

@@ -80,6 +80,7 @@ namespace ParcelFabricCurveByInferenceTest
             CurveByInference curveByInference = new CurveByInference() { messageBox = new MyMessageBox() };
             curveByInference.FindCurves("test", featureClass, centerPointFeatureClass, null, whereClause, parcelHash, idxRADIUS, idxCENTERPTID, idxParcelIDFld, new myProgessor());
 
+            Console.WriteLine(Framework.GenerateConstructorStatment(curveByInference.Curves));
             return curveByInference;
         }
 
@@ -111,6 +112,7 @@ namespace ParcelFabricCurveByInferenceTest
             CurveByInference curveByInference = new CurveByInference() { messageBox = new MyMessageBox() };
             curveByInference.FindCurves("test", featureClass, centerpointFeatureClass, null, whereClause, parcelHash, idxRADIUS, idxCENTERPTID, idxParcelIDFld, new myProgessor());
 
+            Console.WriteLine(Framework.GenerateConstructorStatment(curveByInference.Curves));
             return curveByInference;
         }
 
@@ -119,14 +121,14 @@ namespace ParcelFabricCurveByInferenceTest
         {
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
                         new InferredCurve(5, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(16, 10, 1, RelationTypes.Tangent),
-                                    new RelatedCurve(10, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(16, 10, 1, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(10, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             List<InferredCurve> results = new List<InferredCurve>() { 
                         new InferredCurve(5, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(16, 10, 1, RelationTypes.Tangent),
-                                    new RelatedCurve(10, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(16, 10, 1, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(10, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, results);
@@ -136,14 +138,14 @@ namespace ParcelFabricCurveByInferenceTest
         {
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
                         new InferredCurve(5, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(10, 10, 1, RelationTypes.Tangent),
-                                    new RelatedCurve(16, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(10, 10, 1, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(16, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             List<InferredCurve> results = new List<InferredCurve>() { 
                         new InferredCurve(5, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(16, 10, 1, RelationTypes.Tangent),
-                                    new RelatedCurve(10, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(16, 10, 1, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(10, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, results);
@@ -154,14 +156,14 @@ namespace ParcelFabricCurveByInferenceTest
         {
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
                         new InferredCurve(15, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(10, 10, 1, RelationTypes.Tangent),
-                                    new RelatedCurve(16, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(10, 10, 1, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(16, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             List<InferredCurve> results = new List<InferredCurve>() { 
                         new InferredCurve(5, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(16, 10, 1, RelationTypes.Tangent),
-                                    new RelatedCurve(10, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(16, 10, 1, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(10, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, results);
@@ -172,13 +174,13 @@ namespace ParcelFabricCurveByInferenceTest
         {
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
                         new InferredCurve(5, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(10, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(10, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             List<InferredCurve> results = new List<InferredCurve>() { 
                         new InferredCurve(5, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(16, 10, 1, RelationTypes.Tangent),
-                                    new RelatedCurve(10, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(16, 10, 1, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(10, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, results);
@@ -189,14 +191,14 @@ namespace ParcelFabricCurveByInferenceTest
         {
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
                         new InferredCurve(5, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(6, 10, 1, RelationTypes.Tangent),
-                                    new RelatedCurve(10, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(6, 10, 1, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(10, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             List<InferredCurve> results = new List<InferredCurve>() { 
                         new InferredCurve(5, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(16, 10, 1, RelationTypes.Tangent),
-                                    new RelatedCurve(10, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(16, 10, 1, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(10, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, results);
@@ -207,14 +209,14 @@ namespace ParcelFabricCurveByInferenceTest
         {
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
                         new InferredCurve(5, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(16, 10, 1, RelationTypes.Tangent),
-                                    new RelatedCurve(10, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(16, 10, 1, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(10, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             List<InferredCurve> results = new List<InferredCurve>() { 
                         new InferredCurve(5, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(16, 10, 1, RelationTypes.Tangent),
-                                    new RelatedCurve(10, 9.5, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(16, 10, 1, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(10, 9.5, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, results);
@@ -224,14 +226,14 @@ namespace ParcelFabricCurveByInferenceTest
         {
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
                         new InferredCurve(5, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(16, 10, 1, RelationTypes.Tangent),
-                                    new RelatedCurve(10, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(16, 10, 1, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(10, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             List<InferredCurve> results = new List<InferredCurve>() { 
                         new InferredCurve(5, "test", new List<RelatedCurve> { 
-                                    new RelatedCurve(16, 10.000001, 1, RelationTypes.Tangent),
-                                    new RelatedCurve(10, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(16, 10.000001, 1, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(10, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, results);
@@ -242,40 +244,60 @@ namespace ParcelFabricCurveByInferenceTest
         {
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
                         new InferredCurve(5, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(6, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(10, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(6, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(10, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             List<InferredCurve> results = new List<InferredCurve>() { 
                         new InferredCurve(5, "test", new List<RelatedCurve> { 
-                                    new RelatedCurve(16, 10, 1, RelationTypes.Tangent),
-                                    new RelatedCurve(10, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(16, 10, 1, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(10, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, results);
         }
 
         [TestMethod]
+        [ExpectedException(typeof(AssertFailedException), "CollectionAssert.AreEqual failed. (Element at index 0 do not match.)")]
+        public void TestRelatedCurveOrientationDiff()
+        {
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { 
+                        new InferredCurve(5, "test", new List<RelatedCurve> {
+                                    new RelatedCurve(6, 10, 2, CurveByInference.RelativeOrientation.To_To),
+                                    new RelatedCurve(10, 10, 1, CurveByInference.RelativeOrientation.From_From)
+                                })};
+
+            List<InferredCurve> results = new List<InferredCurve>() { 
+                        new InferredCurve(5, "test", new List<RelatedCurve> { 
+                                    new RelatedCurve(16, 10, 1, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(10, 10, 1, CurveByInference.RelativeOrientation.From_From)
+                                })};
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, results);
+        }
+
+
+        [TestMethod]
         public void TestRelatedMultipleDiff()
         {
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
                 new InferredCurve(5, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(6, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(7, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(6, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(7, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 }),    
                 new InferredCurve(15, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(8, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(9, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(8, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(9, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             List<InferredCurve> results = new List<InferredCurve>() { 
                 new InferredCurve(5, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(6, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(7, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(6, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(7, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 }),        
                 new InferredCurve(15, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(8, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(9, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(8, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(9, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, results);
@@ -286,22 +308,22 @@ namespace ParcelFabricCurveByInferenceTest
         {
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
                 new InferredCurve(5, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(6, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(7, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(6, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(7, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 }),        
                 new InferredCurve(15, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(8, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(9, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(8, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(9, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             List<InferredCurve> results = new List<InferredCurve>() { 
                 new InferredCurve(15, "test", new List<RelatedCurve> {
-                                    new RelatedCurve(6, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(7, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(6, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(7, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 }),        
                 new InferredCurve(5, "test", new List<RelatedCurve> { 
-                                    new RelatedCurve(8, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(9, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(8, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(9, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, results);
@@ -312,22 +334,22 @@ namespace ParcelFabricCurveByInferenceTest
         {
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
                 new InferredCurve(5, "test", new List<RelatedCurve> { 
-                                    new RelatedCurve(6, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(7, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(6, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(7, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 }),       
                 new InferredCurve(15, "test", new List<RelatedCurve> { 
-                                    new RelatedCurve(8, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(9, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(8, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(9, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             List<InferredCurve> results = new List<InferredCurve>() { 
                 new InferredCurve(6, "test", new List<RelatedCurve> { 
-                                    new RelatedCurve(6, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(7, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(6, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(7, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 }),        
                 new InferredCurve(15, "test", new List<RelatedCurve> { 
-                                    new RelatedCurve(8, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(9, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(8, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(9, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, results);
@@ -338,23 +360,23 @@ namespace ParcelFabricCurveByInferenceTest
         {
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
                 new InferredCurve(5, "test", new List<RelatedCurve> { 
-                                    new RelatedCurve(6, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(7, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(6, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(7, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 }),        
                 new InferredCurve(15, "test", new List<RelatedCurve> { 
-                                    new RelatedCurve(8, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(9, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(8, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(9, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })
                         };
 
             List<InferredCurve> results = new List<InferredCurve>() { 
                 new InferredCurve(5, "test", new List<RelatedCurve> { 
-                                    new RelatedCurve(6, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(7, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(6, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(7, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 }),        
                 new InferredCurve(16, "test", new List<RelatedCurve> { 
-                                    new RelatedCurve(8, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(9, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(8, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(9, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })
                         };
 
@@ -366,23 +388,23 @@ namespace ParcelFabricCurveByInferenceTest
         {
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
                 new InferredCurve(5, "test", new List<RelatedCurve> { 
-                                    new RelatedCurve(6, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(7, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(6, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(7, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 }),        
                 new InferredCurve(15, "test", new List<RelatedCurve> { 
-                                    new RelatedCurve(8, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(9, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(8, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(9, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })
                         };
 
             List<InferredCurve> results = new List<InferredCurve>() { 
                 new InferredCurve(5, "test", new List<RelatedCurve> { 
-                                    new RelatedCurve(6, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(7, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(6, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(7, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 }),        
                 new InferredCurve(15, "test", new List<RelatedCurve> { 
-                                    new RelatedCurve(18, 10, 2, RelationTypes.Tangent),
-                                    new RelatedCurve(9, 10, 1, RelationTypes.Tangent)
+                                    new RelatedCurve(18, 10, 2, CurveByInference.RelativeOrientation.From_From),
+                                    new RelatedCurve(9, 10, 1, CurveByInference.RelativeOrientation.From_From)
                                 })
                         };
 
@@ -407,20 +429,35 @@ namespace ParcelFabricCurveByInferenceTest
             return strBuilder.ToString();
         }
 
+        static string CreateCurve        =  "     new InferredCurve({0}, \"test\", new List<RelatedCurve>() {{" + Environment.NewLine;
+        static string CreateRelatedCurve =  "          new RelatedCurve({0}, {1}, {2}, CurveByInference.RelativeOrientation.{3})";
+        static string CreateCurveClose =    "     }){" + Environment.NewLine;
+        static string AcceptedCreate =      "          Accepted = new RelatedCurve({0}, {1}, {2}, CurveByInference.RelativeOrientation.{3}), " + Environment.NewLine;
+        static string ParallelCreate =      "          ParallelCurves = new List<RelatedCurve>() {" + Environment.NewLine;
+        static string CreateCurveItem =     "                new RelatedCurve({0}, {1}, {2}, CurveByInference.RelativeOrientation.{3})";
+        static string ParallelCreateClose = "          }," + Environment.NewLine;
+        static string LineCreate =          "          TangentLines = new List<RelatedLine>() {" + Environment.NewLine;
+        static string CreateLineItem =      "               new RelatedLine({0}, {1}, CurveByInference.RelativeOrientation.{2})";
+        static string LineCreateClose =     "          }}";
+
+        static string ListJoin =            "," + Environment.NewLine;
+
         private static object GenerateConstructorStatment_Curve(InferredCurve curve)
         {
             StringBuilder strBuilder = new StringBuilder();
-            strBuilder.Append(String.Concat("     new InferredCurve(", curve.ObjectID, ", \"test\", new List<RelatedCurve>() {" + Environment.NewLine));
-            strBuilder.Append(String.Join("," + Environment.NewLine, (from r in curve.TangentCurves select String.Format("          new RelatedCurve({0}, {1}, {2}, RelationTypes.Tangent)", r.ObjectID, r.Radius, r.CenterpointID)).ToArray()));
-            strBuilder.Append("        })");
+            strBuilder.Append(String.Format(CreateCurve, curve.ObjectID));
+            strBuilder.Append(String.Join(ListJoin, (from r in curve.TangentCurves select String.Format(CreateRelatedCurve, r.ObjectID, r.Radius, r.CenterpointID, r.Orientation)).ToArray()));
+            strBuilder.Append(CreateCurveClose);
 
-            strBuilder.Append("{" + Environment.NewLine);
             if(curve.Accepted != null)
-                strBuilder.AppendFormat("       Accepted = new RelatedCurve({0}, {1}, {2}, RelationTypes.Tangent), " + Environment.NewLine, curve.Accepted.ObjectID, curve.Accepted.Radius, curve.Accepted.CenterpointID);
+                strBuilder.AppendFormat(AcceptedCreate, curve.Accepted.ObjectID, curve.Accepted.Radius, curve.Accepted.CenterpointID, curve.Accepted.Orientation);
 
-            strBuilder.Append("       ParallelCurves = new List<RelatedCurve>() {" + Environment.NewLine);
-            strBuilder.Append(String.Join("," + Environment.NewLine, (from r in curve.ParallelCurves select String.Format("               new RelatedCurve({0}, {1}, {2}, RelationTypes.Tangent)", r.ObjectID, r.Radius, r.CenterpointID)).ToArray()));
-            strBuilder.Append("        }}");
+            strBuilder.Append(ParallelCreate);
+            strBuilder.Append(String.Join(ListJoin, (from r in curve.ParallelCurves select String.Format(CreateCurveItem, r.ObjectID, r.Radius, r.CenterpointID, r.Orientation)).ToArray()));
+            strBuilder.Append(ParallelCreateClose);
+            strBuilder.Append(LineCreate);
+            strBuilder.Append(String.Join(ListJoin, (from r in curve.TangentLines select String.Format(CreateLineItem, r.ObjectID, r.Angle, r.Orientation)).ToArray()));
+            strBuilder.Append(Environment.NewLine + LineCreateClose);
 
             return strBuilder.ToString();
         }

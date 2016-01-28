@@ -10,7 +10,6 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
-using System.Windows.Shapes;
 using ESRI.ArcGIS.Geodatabase;
 using ESRI.ArcGIS.Geometry;
 using ESRI.ArcGIS.Carto;
@@ -25,6 +24,8 @@ namespace ParcelFabricCurveByInference
     /// </summary>
     public partial class CurveByInferenceWindow : UserControl
     {
+        CurveByInference context { get { return this.DataContext as CurveByInference; } }
+
         public CurveByInferenceWindow()
         {
             InitializeComponent();
@@ -65,6 +66,243 @@ namespace ParcelFabricCurveByInference
             }
 
         }
+                
+        private IFeature GetFeature(string layerName, int objectid)
+        {
+            IFeatureLayer fl = getLayerByLayerName(layerName);
+            if (fl == null)
+                MessageBox.Show(String.Format("The layer {0} could not be found", layerName));
+
+            return fl.FeatureClass.GetFeature(objectid);
+        }
+        private void Flash(IFeature feature)
+        {
+            IFeatureIdentifyObj featIdentify = new FeatureIdentifyObject();
+            featIdentify.Feature = feature;
+            IIdentifyObj identify = featIdentify as IIdentifyObj;
+            if(identify != null)
+                identify.Flash(ArcMap.Document.ActivatedView.ScreenDisplay);
+
+            Marshal.ReleaseComObject(featIdentify);
+        }
+        private void ZoomTo(IEnvelope extent)
+        {
+            if (extent.Height == 0)
+                extent.Height = extent.Width / 4;
+            if (extent.Width == 0)
+                extent.Width = extent.Height / 4;
+            extent.Expand(1.2, 1.2, true);
+            ArcMap.Document.ActivatedView.Extent = extent;
+            ArcMap.Document.ActivatedView.Refresh();
+            ArcMap.Document.ActivatedView.ScreenDisplay.UpdateWindow();
+        }
+        private void PanTo(IFeature feature)
+        {
+            double X = (feature.Extent.XMin + feature.Extent.XMax) / 2.0;
+            double Y = (feature.Extent.YMin + feature.Extent.YMax) / 2.0;
+
+            IEnvelope currentEnv = ArcMap.Document.ActivatedView.Extent;
+            currentEnv.CenterAt(new ESRI.ArcGIS.Geometry.Point() { X = X, Y = Y });
+            ArcMap.Document.ActivatedView.Extent = currentEnv;
+
+            ArcMap.Document.ActivatedView.Refresh();
+            
+        }
+        private void ZoomToRelated(InferredCurve curve, bool select)
+        {
+            IFeatureLayer fl = getLayerByLayerName(curve.LayerName);
+            if (fl == null)
+                MessageBox.Show(String.Format("The layer {0} could not be found", curve.LayerName));
+
+            List<int> oids = new List<int>();
+            oids.Add(curve.ObjectID);
+            oids.AddRange(curve.ParallelCurves.Select(w => w.ObjectID));
+            oids.AddRange(curve.TangentCurves.Select(w => w.ObjectID));
+            oids.AddRange(curve.TangentLines.Select(w => w.ObjectID));
+
+            IEnvelope extent = null;
+
+            if (select)
+                ArcMap.Document.FocusMap.ClearSelection();
+
+            IFeatureCursor featureCursor = fl.FeatureClass.GetFeatures(oids.ToArray(), true);
+            IFeature feature = null;
+            while ((feature = featureCursor.NextFeature()) != null)
+            {
+                if (extent == null)
+                    extent = feature.Shape.Envelope;
+                else
+                    extent.Union(feature.Shape.Envelope);
+
+                if (select)
+                    ArcMap.Document.FocusMap.SelectFeature(fl, feature);
+
+                Marshal.ReleaseComObject(feature);
+            }
+
+            ArcMap.Document.ActivatedView.Extent = extent;
+            ArcMap.Document.ActivatedView.Refresh();
+        }
+                
+        InferredCurve getInferredCurveFromMenuItem(object sender)
+        {
+            MenuItem mi = sender as MenuItem;
+            if (mi != null)
+                return mi.CommandParameter as InferredCurve;
+            return null;
+        }
+        LineBase getRelatedCurveFromMenuItem(object sender)
+        {
+            MenuItem mi = sender as MenuItem;
+            if (mi != null)
+                return mi.CommandParameter as LineBase;
+            return null;
+        }
+        IFeatureLayer getLayerByLayerName(string Name)
+        {
+            IEnumLayer layers = ArcMap.Document.FocusMap.get_Layers(null, true);
+            ILayer layer = null;
+            while((layer = layers.Next()) != null)
+            {
+                if (layer.Name == Name)
+                    return layer as IFeatureLayer;
+            }
+            Marshal.ReleaseComObject(layers);
+            return null;
+        }
+        
+        #region Inferred Curve Context Menu Events
+
+        private void FlashInferred_Click(object sender, RoutedEventArgs e)
+        {
+            InferredCurve curve = getInferredCurveFromMenuItem(sender);
+            if (curve != null)
+            {
+                IFeature feature = GetFeature(curve.LayerName, curve.ObjectID);
+                Flash(feature);
+                Marshal.ReleaseComObject(feature);
+            }
+        }
+
+        private void PanToInferred_Click(object sender, RoutedEventArgs e)
+        {
+            InferredCurve curve = getInferredCurveFromMenuItem(sender);
+            if (curve != null)
+            {
+                IFeature feature = GetFeature(curve.LayerName, curve.ObjectID);
+                PanTo(feature);
+                Marshal.ReleaseComObject(feature);
+            }
+        }
+
+        private void ZoomToInferred_Click(object sender, RoutedEventArgs e)
+        {
+            InferredCurve curve = getInferredCurveFromMenuItem(sender);
+            if (curve != null)
+            {
+                IFeature feature = GetFeature(curve.LayerName, curve.ObjectID);
+                ZoomTo(feature.Extent);
+                Marshal.ReleaseComObject(feature);
+            }
+        }
+
+        private void ZoomToInferredRelated_Click(object sender, RoutedEventArgs e)
+        {
+            InferredCurve curve = getInferredCurveFromMenuItem(sender);
+            if (curve != null)
+            {
+                ZoomToRelated(curve, false);
+            }
+        }
+        
+        private void SelectInferredRelated_Click(object sender, RoutedEventArgs e)
+        {
+            InferredCurve curve = getInferredCurveFromMenuItem(sender);
+            if (curve != null)
+            {
+                ZoomToRelated(curve, true);
+            }
+        }
+
+        private void ApplyInferredChange_Click(object sender, RoutedEventArgs e)
+        {
+            InferredCurve curve = getInferredCurveFromMenuItem(sender);
+            if (curve != null)
+            {
+                IFeatureLayer fl = getLayerByLayerName(curve.LayerName);
+                if (fl == null)
+                    MessageBox.Show(String.Format("The layer {0} could not be found", curve.LayerName));
+
+                CurveByInference context = new CurveByInference();
+                context.FindCurves(true, string.Format("{0} = {1}", fl.FeatureClass.OIDFieldName, curve.ObjectID));
+            }
+        }
+
+        #endregion
+
+        #region Related Curve Context Menu Events
+
+        private void FlashRelated_Click(object sender, RoutedEventArgs e)
+        {
+            LineBase curve = getRelatedCurveFromMenuItem(sender);
+            if (curve != null && context != null && context.SelectedItem != null)
+            {
+                IFeature feature = GetFeature(context.SelectedItem.LayerName, curve.ObjectID);
+                Flash(feature);
+                Marshal.ReleaseComObject(feature);
+            }
+        }
+
+        private void ZoomToRelated_Click(object sender, RoutedEventArgs e)
+        {
+            LineBase curve = getRelatedCurveFromMenuItem(sender);
+            if (curve != null && context != null && context.SelectedItem != null)
+            {
+                IFeature feature = GetFeature(context.SelectedItem.LayerName, curve.ObjectID);
+                ZoomTo(feature.Shape.Envelope);
+                Marshal.ReleaseComObject(feature);
+            }
+        }
+
+        private void PanToRelated_Click(object sender, RoutedEventArgs e)
+        {
+            LineBase curve = getRelatedCurveFromMenuItem(sender);
+            if (curve != null && context != null && context.SelectedItem != null)
+            {
+                IFeature feature = GetFeature(context.SelectedItem.LayerName, curve.ObjectID);
+                PanTo(feature);
+                Marshal.ReleaseComObject(feature);
+            }
+        }
+
+        private void SelectRelated_Click(object sender, RoutedEventArgs e)
+        {
+            LineBase curve = getRelatedCurveFromMenuItem(sender);
+            if (curve != null && context != null && context.SelectedItem != null)
+            {
+                IFeatureLayer fl = getLayerByLayerName(context.SelectedItem.LayerName);
+                if (fl == null)
+                    MessageBox.Show(String.Format("The layer {0} could not be found", context.SelectedItem.LayerName));
+
+                IFeature feature = fl.FeatureClass.GetFeature(curve.ObjectID);
+                ArcMap.Document.FocusMap.SelectFeature(fl, feature);
+                Marshal.ReleaseComObject(feature);
+            }    
+            
+        }
+
+        private void UpdateValuesRelated_Click(object sender, RoutedEventArgs e)
+        {
+            RelatedCurve curve = getRelatedCurveFromMenuItem(sender) as RelatedCurve;
+            if (curve != null && context != null && context.SelectedItem != null)
+            {
+                context.SelectedItem.Accepted = curve;
+            }
+        }
+
+        #endregion
+
+        #region button click events
 
         private void Find_Click(object sender, RoutedEventArgs e)
         {
@@ -80,178 +318,14 @@ namespace ParcelFabricCurveByInference
 
             context.FindCurves(true);
         }
-        
         private void Clear_Click(object sender, RoutedEventArgs e)
         {
             CurveByInference context = new CurveByInference();
             this.DataContext = context;
         }
 
-        private void Flash_Click(object sender, RoutedEventArgs e)
-        {
-            InferredCurve curve = getInferredCurveFromMenuItem(sender);
-            if (curve != null)
-            {
-                IFeatureLayer fl = getLayerByLayerName(curve.LayerName);
-                if (fl == null)
-                    MessageBox.Show(String.Format("The layer {0} could not be found", curve.LayerName));
 
-
-                IFeature feature = fl.FeatureClass.GetFeature(curve.ObjectID);
-
-                IFeatureIdentifyObj featIdentify = new FeatureIdentifyObject();
-                featIdentify.Feature = feature;
-                IIdentifyObj identify = featIdentify as IIdentifyObj;
-                identify.Flash(ArcMap.Document.ActivatedView.ScreenDisplay);
-
-                Marshal.ReleaseComObject(featIdentify);
-                Marshal.ReleaseComObject(feature);
-            }
-        }
-        private void ZoomTo_Click(object sender, RoutedEventArgs e)
-        {
-            InferredCurve curve = getInferredCurveFromMenuItem(sender);
-            if (curve != null)
-            {
-                IFeatureLayer fl = getLayerByLayerName(curve.LayerName);
-                if (fl == null)
-                    MessageBox.Show(String.Format("The layer {0} could not be found", curve.LayerName));
-
-
-                IFeature feature = fl.FeatureClass.GetFeature(curve.ObjectID);
-
-
-                IEnvelope extent = feature.Shape.Envelope;
-                if (extent.Height == 0)
-                    extent.Height = extent.Width / 4;
-                if (extent.Width == 0)
-                    extent.Width = extent.Height / 4;
-                extent.Expand(1.2, 1.2, true);
-                ArcMap.Document.ActivatedView.Extent = extent;
-                ArcMap.Document.ActivatedView.Refresh();
-                ArcMap.Document.ActivatedView.ScreenDisplay.UpdateWindow();
-
-                IFeatureIdentifyObj featIdentify = new FeatureIdentifyObject();
-                featIdentify.Feature = feature;
-                IIdentifyObj identify = featIdentify as IIdentifyObj;
-                identify.Flash(ArcMap.Document.ActivatedView.ScreenDisplay);
-
-                Marshal.ReleaseComObject(featIdentify);
-                Marshal.ReleaseComObject(feature);
-            }
-        }
-        private void ZoomToRelated_Click(object sender, RoutedEventArgs e)
-        {
-            InferredCurve curve = getInferredCurveFromMenuItem(sender);
-            if (curve != null)
-            {
-                IFeatureLayer fl = getLayerByLayerName(curve.LayerName);
-                if (fl == null)
-                    MessageBox.Show(String.Format("The layer {0} could not be found", curve.LayerName));
-
-
-                IFeature feature = fl.FeatureClass.GetFeature(curve.ObjectID);
-
-
-                IEnvelope extent = feature.Shape.Envelope;
-                foreach (RelatedCurve rc in curve.ParallelCurves)
-                {
-                    IFeature relatedFeature = fl.FeatureClass.GetFeature(rc.ObjectID);
-                    extent.Union(relatedFeature.Extent);
-                    Marshal.ReleaseComObject(relatedFeature);
-                }
-                foreach (RelatedCurve rc in curve.TangentCurves)
-                {
-                    IFeature relatedFeature = fl.FeatureClass.GetFeature(rc.ObjectID);
-                    extent.Union(relatedFeature.Extent);
-                    Marshal.ReleaseComObject(relatedFeature);
-                }
-                if (extent.Height == 0)
-                    extent.Height = extent.Width / 4;
-                if (extent.Width == 0)
-                    extent.Width = extent.Height / 4;
-
-                extent.Expand(1.2, 1.2, true);
-
-                ArcMap.Document.ActivatedView.Extent = extent;
-                ArcMap.Document.ActivatedView.Refresh();
-                ArcMap.Document.ActivatedView.ScreenDisplay.UpdateWindow();
-
-                Marshal.ReleaseComObject(feature);
-            }
-        }
-        private void SelectRelated_Click(object sender, RoutedEventArgs e)
-        {
-            InferredCurve curve = getInferredCurveFromMenuItem(sender);
-            if (curve != null)
-            {
-                IFeatureLayer fl = getLayerByLayerName(curve.LayerName);
-                if (fl == null)
-                    MessageBox.Show(String.Format("The layer {0} could not be found", curve.LayerName));
-                
-                ArcMap.Document.FocusMap.ClearSelection();
-
-                IFeature feature = fl.FeatureClass.GetFeature(curve.ObjectID);
-                ArcMap.Document.FocusMap.SelectFeature(fl, feature);
-                IEnvelope extent = feature.Shape.Envelope;
-
-                foreach (RelatedCurve rc in curve.ParallelCurves)
-                {
-                    IFeature relatedFeature = fl.FeatureClass.GetFeature(rc.ObjectID);
-                    ArcMap.Document.FocusMap.SelectFeature(fl, relatedFeature);
-                    extent.Union(relatedFeature.Extent);
-                    Marshal.ReleaseComObject(relatedFeature);
-                }
-                foreach (RelatedCurve rc in curve.TangentCurves)
-                {
-                    IFeature relatedFeature = fl.FeatureClass.GetFeature(rc.ObjectID);
-                    ArcMap.Document.FocusMap.SelectFeature(fl, relatedFeature);
-                    extent.Union(relatedFeature.Extent);
-                    Marshal.ReleaseComObject(relatedFeature);
-                }
-                extent.Expand(1.2, 1.2, true);
-                ArcMap.Document.ActivatedView.Extent = extent;
-                ArcMap.Document.ActivatedView.Refresh();
-                ArcMap.Document.ActivatedView.ScreenDisplay.UpdateWindow();
-
-                Marshal.ReleaseComObject(feature);
-            }
-        }
-        private void ApplyChange_Click(object sender, RoutedEventArgs e)
-        {
-            InferredCurve curve = getInferredCurveFromMenuItem(sender);
-            if (curve != null)
-            {
-                IFeatureLayer fl = getLayerByLayerName(curve.LayerName);
-                if (fl == null)
-                    MessageBox.Show(String.Format("The layer {0} could not be found", curve.LayerName));
-
-                CurveByInference context = new CurveByInference();
-                context.FindCurves(true, string.Format("{0} = {1}", fl.FeatureClass.OIDFieldName, curve.ObjectID));
-            }
-        }
-
-        InferredCurve getInferredCurveFromMenuItem(object sender)
-        {
-            MenuItem mi = sender as MenuItem;
-            if (mi != null)
-            {
-                return mi.CommandParameter as InferredCurve;
-            }
-            return null;
-        }
-        IFeatureLayer getLayerByLayerName(string Name)
-        {
-            IEnumLayer layers = ArcMap.Document.FocusMap.get_Layers(null, true);
-            ILayer layer = null;
-            while((layer = layers.Next()) != null)
-            {
-                if (layer.Name == Name)
-                    return layer as IFeatureLayer;
-            }
-            Marshal.ReleaseComObject(layers);
-            return null;
-        }
+        #endregion
 
     }
 }
