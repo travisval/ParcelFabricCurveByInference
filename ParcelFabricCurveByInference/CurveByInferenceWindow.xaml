@@ -3,6 +3,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:l="clr-namespace:ParcelFabricCurveByInference"
     xmlns:System="clr-namespace:System;assembly=mscorlib"
+    xmlns:u="clr-namespace:Wpf.Util"
     Height="300" Width="600">
     <UserControl.Resources>
         <ObjectDataProvider x:Key="dataFromEnum" MethodName="GetValues" ObjectType="{x:Type System:Enum}">
@@ -129,22 +130,22 @@
                         <ColumnDefinition Width="5"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <ListView ItemsSource="{Binding Curves}" SelectionMode="Single" SelectedItem="{Binding SelectedItem, Mode=TwoWay}">
+                    <ListView ItemsSource="{Binding Curves}" SelectionMode="Single" SelectedItem="{Binding SelectedItem, Mode=TwoWay}" u:GridViewSort.AutoSort="True">
                         <ListView.View>
-                            <GridView> 
-                                <GridViewColumn Header="OID" Width="50" DisplayMemberBinding="{Binding ObjectID}" />
-                                <GridViewColumn Header="Action" Width="80">
+                            <GridView>
+                                <GridViewColumn Header="OID" Width="50" DisplayMemberBinding="{Binding ObjectID}" u:GridViewSort.PropertyName="ObjectID"/>
+                                <GridViewColumn Header="Action" Width="80" u:GridViewSort.PropertyName="Action">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
-                                            <ComboBox SelectedValue="{Binding Action}" ItemsSource="{Binding Source={StaticResource dataFromEnum}}"/>
+                                            <ComboBox SelectedValue="{Binding Action}" ItemsSource="{Binding Source={StaticResource dataFromEnum}}" IsEnabled="{Binding CanActionChange}"/>
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
-                                <GridViewColumn Header="Radius" Width="60" DisplayMemberBinding="{Binding Accepted.Radius}" />
-                                <GridViewColumn Header="Centerpoint" Width="70" DisplayMemberBinding="{Binding Accepted.CenterpointID}" />
-                                <GridViewColumn Header="Tangents" Width="60" DisplayMemberBinding="{Binding TangentCurveCount}" />
-                                <GridViewColumn Header="Parallels" Width="50" DisplayMemberBinding="{Binding ParallelCurveCount}" />
-                                <GridViewColumn Header="Lines" Width="50" DisplayMemberBinding="{Binding TangentLineCount}" />
+                                <GridViewColumn Header="Radius" Width="60" DisplayMemberBinding="{Binding InferredRadius}" u:GridViewSort.PropertyName="InferredRadius"/>
+                                <GridViewColumn Header="Centerpoint" Width="70" DisplayMemberBinding="{Binding InferredCenterpointID}" u:GridViewSort.PropertyName="InferredCenterpointID"/>
+                                <GridViewColumn Header="Tangents" Width="60" DisplayMemberBinding="{Binding TangentCurveCount}" u:GridViewSort.PropertyName="TangentCurveCount"/>
+                                <GridViewColumn Header="Parallels" Width="50" DisplayMemberBinding="{Binding ParallelCurveCount}" u:GridViewSort.PropertyName="ParallelCurveCount"/>
+                                <GridViewColumn Header="Lines" Width="50" DisplayMemberBinding="{Binding TangentLineCount}" u:GridViewSort.PropertyName="TangentLineCount"/>
                             </GridView>
                         </ListView.View>
                         <!-- Resource and Style to move context menu from GridView to GridViewItems -->
@@ -156,7 +157,7 @@
                                 <MenuItem Header="Zoom to Related Features" Click="ZoomToInferredRelated_Click" CommandParameter="{Binding}"></MenuItem>
                                 <MenuItem Header="Select Related Features" Click="SelectInferredRelated_Click" CommandParameter="{Binding}"></MenuItem>
                                 <Separator Visibility="{Binding SetVisibility}"/>
-                                <MenuItem Header="Apply Change" Click="ApplyInferredChange_Click" CommandParameter="{Binding}" Visibility="{Binding SetVisibility}" IsEnabled="{Binding DataContext.isEditing, RelativeSource={RelativeSource AncestorType=TreeView}}"></MenuItem>
+                                <MenuItem Header="Apply Change" Click="ApplyInferredChange_Click" CommandParameter="{Binding}" Visibility="{Binding SetVisibility}" IsEnabled="{Binding DataContext.IsEditing, RelativeSource={RelativeSource AncestorType=ListView}}"></MenuItem>
                             </ContextMenu>
                         </ListView.Resources>
                         <ListView.ItemContainerStyle>
@@ -170,8 +171,8 @@
                         <DockPanel DataContext="{Binding SelectedItem}">
                             <StackPanel DockPanel.Dock="Top">
                                 <TextBlock DockPanel.Dock="Top" Text="{Binding ObjectID, StringFormat=ObjectID: {0}}" FontSize="14" FontWeight="Bold"/>
-                                <TextBlock DockPanel.Dock="Top" Text="{Binding Accepted.Radius, StringFormat=Radius: {0}}" Visibility="{Binding SetVisibility}"/>
-                                <TextBlock DockPanel.Dock="Top" Text="{Binding Accepted.CenterpointID, StringFormat=CenterpointID: {0}}" Visibility="{Binding SetVisibility}"/>
+                                <TextBlock DockPanel.Dock="Top" Text="{Binding InferredRadius, StringFormat=Radius: {0}}" Visibility="{Binding SetVisibility}"/>
+                                <TextBlock DockPanel.Dock="Top" Text="{Binding InferredCenterpointID, StringFormat=CenterpointID: {0}}" Visibility="{Binding SetVisibility}"/>
                             </StackPanel>
                             <WrapPanel>
                                 <Expander Header="Tangent Curves" Visibility="{Binding TangentVisibility, FallbackValue=Collapsed}" Margin="3">
@@ -191,7 +192,7 @@
                     <Button Margin="2" Width="80" Click="Clear_Click" IsEnabled="{Binding Finished}" DockPanel.Dock="Left">Clear</Button>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button Margin="2" Width="80" Click="Find_Click" IsEnabled="{Binding Finished}" DockPanel.Dock="Right">Find Rows</Button>
-                        <Button Margin="2" Width="80" Click="Update_Click" IsEnabled="{Binding Finished}" DockPanel.Dock="Right">Update Rows</Button>
+                        <Button Margin="2" Width="80" Click="Update_Click" IsEnabled="{Binding IsEditing}" DockPanel.Dock="Right">Update Rows</Button>
                     </StackPanel>
                 </DockPanel>
             </Grid>

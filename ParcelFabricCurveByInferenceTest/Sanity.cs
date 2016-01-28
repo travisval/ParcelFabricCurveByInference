@@ -59,7 +59,7 @@ namespace ParcelFabricCurveByInferenceTest
                  new InferredCurve(376510, "test", new List<RelatedCurve>() {
                       new RelatedCurve(376511, 543.236862578124, 161476, CurveByInference.RelativeOrientation.To_From),
                       new RelatedCurve(378231, 543.236862578124, 161476, CurveByInference.RelativeOrientation.To_To)     }){
-                      Accepted = new RelatedCurve(376511, 543.236862578124, 161476, CurveByInference.RelativeOrientation.To_From), 
+                      InferredRadius = 543.236862578124, InferredCenterpointID = 161476,
                       ParallelCurves = new List<RelatedCurve>() {
                       },
                       TangentLines = new List<RelatedLine>() {
@@ -94,7 +94,7 @@ namespace ParcelFabricCurveByInferenceTest
                  new InferredCurve(378232, "test", new List<RelatedCurve>() {
                       new RelatedCurve(376511, -543.236862578124, 161476, CurveByInference.RelativeOrientation.From_From),
                       new RelatedCurve(378231, -543.236862578124, 161476, CurveByInference.RelativeOrientation.From_To)     }){
-                      Accepted = new RelatedCurve(376511, -543.236862578124, 161476, CurveByInference.RelativeOrientation.From_From), 
+                      InferredRadius = -543.236862578124, InferredCenterpointID = 161476,  
                       ParallelCurves = new List<RelatedCurve>() {
                       },
                       TangentLines = new List<RelatedLine>() {
@@ -119,7 +119,7 @@ namespace ParcelFabricCurveByInferenceTest
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
                 new InferredCurve(30, "test", new List<RelatedCurve>() {          
                     new RelatedCurve(37, 207.696, 24, CurveByInference.RelativeOrientation.From_From) }){
-                        Accepted = new RelatedCurve(37, 207.696, 24, CurveByInference.RelativeOrientation.From_From), 
+                        InferredRadius = 207.696, InferredCenterpointID = 24,
                         ParallelCurves = new List<RelatedCurve>() {          
                             new RelatedCurve(35, 207.695399526566, 24, CurveByInference.RelativeOrientation.From_From),
                             new RelatedCurve(173, 207.695258779861, 24, CurveByInference.RelativeOrientation.From_From),

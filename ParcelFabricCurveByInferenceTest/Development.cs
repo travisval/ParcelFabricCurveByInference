@@ -21,7 +21,7 @@ namespace ParcelFabricCurveByInferenceTest
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
              new InferredCurve(9, "test", new List<RelatedCurve>() {
                   new RelatedCurve(5, 818.826249, 1, CurveByInference.RelativeOrientation.To_From)     }){
-                  Accepted = new RelatedCurve(5, 818.826249, 1, CurveByInference.RelativeOrientation.To_From), 
+                  InferredRadius = 818.826249, InferredCenterpointID = 1,
                   ParallelCurves = new List<RelatedCurve>() {
                   },
                   TangentLines = new List<RelatedLine>() {
@@ -38,7 +38,7 @@ namespace ParcelFabricCurveByInferenceTest
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
                  new InferredCurve(26, "test", new List<RelatedCurve>() {
                       new RelatedCurve(5, -818.826249, 1, CurveByInference.RelativeOrientation.From_From)     }){
-                      Accepted = new RelatedCurve(5, -818.826249, 1, CurveByInference.RelativeOrientation.From_From), 
+                      InferredRadius = -818.826249, InferredCenterpointID = 1,  
                       ParallelCurves = new List<RelatedCurve>() {
                       },
                       TangentLines = new List<RelatedLine>() {
@@ -57,7 +57,7 @@ namespace ParcelFabricCurveByInferenceTest
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
                  new InferredCurve(16, "test", new List<RelatedCurve>() {
                       new RelatedCurve(15, 1023.030777, 1, CurveByInference.RelativeOrientation.From_To)     }){
-                      Accepted = new RelatedCurve(15, 1023.030777, 1, CurveByInference.RelativeOrientation.From_To), 
+                      InferredRadius = 1023.030777, InferredCenterpointID = 1,  
                       ParallelCurves = new List<RelatedCurve>() {
                       },
                       TangentLines = new List<RelatedLine>() {
@@ -74,7 +74,7 @@ namespace ParcelFabricCurveByInferenceTest
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
                  new InferredCurve(25, "test", new List<RelatedCurve>() {
                       new RelatedCurve(15, -1023.030777, 1, CurveByInference.RelativeOrientation.To_To)     }){
-                      Accepted = new RelatedCurve(15, -1023.030777, 1, CurveByInference.RelativeOrientation.To_To), 
+                      InferredRadius = -1023.030777, InferredCenterpointID = 1,  
                       ParallelCurves = new List<RelatedCurve>() {
                       },
                       TangentLines = new List<RelatedLine>() {
@@ -93,7 +93,7 @@ namespace ParcelFabricCurveByInferenceTest
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
                 new InferredCurve(23, "test", new List<RelatedCurve>() {
                     new RelatedCurve(20, 752.060666, 1, CurveByInference.RelativeOrientation.From_To)     }){
-                    Accepted = new RelatedCurve(20, 752.060666, 1, CurveByInference.RelativeOrientation.From_To), 
+                      InferredRadius = 752.060666, InferredCenterpointID = 1,  
                     ParallelCurves = new List<RelatedCurve>() {
                     },
                     TangentLines = new List<RelatedLine>() {
@@ -110,7 +110,7 @@ namespace ParcelFabricCurveByInferenceTest
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
                  new InferredCurve(24, "test", new List<RelatedCurve>() {
                       new RelatedCurve(20, -752.060666, 1, CurveByInference.RelativeOrientation.To_To)     }){
-                      Accepted = new RelatedCurve(20, -752.060666, 1, CurveByInference.RelativeOrientation.To_To), 
+                      InferredRadius = -752.060666, InferredCenterpointID = 1,  
                       ParallelCurves = new List<RelatedCurve>() {
                       },
                       TangentLines = new List<RelatedLine>() {

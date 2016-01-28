@@ -115,6 +115,7 @@
     <Compile Include="CurveByInference.cs" />
     <Compile Include="CurveByInferenceSettings.cs" />
     <Compile Include="InferredCurve.cs" />
+    <Compile Include="ListViewSort.cs" />
     <Compile Include="MyMessageBox.cs" />
     <Compile Include="MyProgressor.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

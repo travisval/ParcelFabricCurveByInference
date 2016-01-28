@@ -69,16 +69,12 @@ namespace ParcelFabricCurveByInferenceTest
 
             IFeatureClass featureClass = (IFeatureClass)cadFabric.get_CadastralTable(esriCadastralFabricTable.esriCFTLines);
 
-            IFeatureClass centerPointFeatureClass = (IFeatureClass)cadFabric.get_CadastralTable(esriCadastralFabricTable.esriCFTPoints);
-
             int idxParcelIDFld = featureClass.Fields.FindField("ParcelID");
             int idxCENTERPTID = featureClass.Fields.FindField("CenterPointID");
             int idxRADIUS = featureClass.Fields.FindField("Radius");
-
-            HashSet<int> parcelHash = new HashSet<int>();
-
+            
             CurveByInference curveByInference = new CurveByInference() { messageBox = new MyMessageBox() };
-            curveByInference.FindCurves("test", featureClass, centerPointFeatureClass, null, whereClause, parcelHash, idxRADIUS, idxCENTERPTID, idxParcelIDFld, new myProgessor());
+            curveByInference.FindCurves("test", featureClass, null, whereClause, idxRADIUS, idxCENTERPTID, idxParcelIDFld, new myProgessor());
 
             Console.WriteLine(Framework.GenerateConstructorStatment(curveByInference.Curves));
             return curveByInference;
@@ -101,16 +97,13 @@ namespace ParcelFabricCurveByInferenceTest
             IFeatureClassContainer featuredataset = (IFeatureClassContainer)featureWorksapce.OpenFeatureDataset(featureDataset);
             
             IFeatureClass featureClass = featuredataset.get_ClassByName(LineFC);
-            IFeatureClass centerpointFeatureClass = featuredataset.get_ClassByName(CenterpointFC);
             
             int idxParcelIDFld = featureClass.Fields.FindField("ParcelID");
             int idxCENTERPTID = featureClass.Fields.FindField("CenterPointID");
             int idxRADIUS = featureClass.Fields.FindField("Radius");
-
-            HashSet<int> parcelHash = new HashSet<int>();
-
+            
             CurveByInference curveByInference = new CurveByInference() { messageBox = new MyMessageBox() };
-            curveByInference.FindCurves("test", featureClass, centerpointFeatureClass, null, whereClause, parcelHash, idxRADIUS, idxCENTERPTID, idxParcelIDFld, new myProgessor());
+            curveByInference.FindCurves("test", featureClass, null, whereClause, idxRADIUS, idxCENTERPTID, idxParcelIDFld, new myProgessor());
 
             Console.WriteLine(Framework.GenerateConstructorStatment(curveByInference.Curves));
             return curveByInference;
@@ -432,7 +425,7 @@ namespace ParcelFabricCurveByInferenceTest
         static string CreateCurve        =  "     new InferredCurve({0}, \"test\", new List<RelatedCurve>() {{" + Environment.NewLine;
         static string CreateRelatedCurve =  "          new RelatedCurve({0}, {1}, {2}, CurveByInference.RelativeOrientation.{3})";
         static string CreateCurveClose =    "     }){" + Environment.NewLine;
-        static string AcceptedCreate =      "          Accepted = new RelatedCurve({0}, {1}, {2}, CurveByInference.RelativeOrientation.{3}), " + Environment.NewLine;
+        static string AcceptedCreate =      "          InferredRadius = {0}, InferredCenterpointID = {1}, " + Environment.NewLine;
         static string ParallelCreate =      "          ParallelCurves = new List<RelatedCurve>() {" + Environment.NewLine;
         static string CreateCurveItem =     "                new RelatedCurve({0}, {1}, {2}, CurveByInference.RelativeOrientation.{3})";
         static string ParallelCreateClose = "          }," + Environment.NewLine;
@@ -449,8 +442,8 @@ namespace ParcelFabricCurveByInferenceTest
             strBuilder.Append(String.Join(ListJoin, (from r in curve.TangentCurves select String.Format(CreateRelatedCurve, r.ObjectID, r.Radius, r.CenterpointID, r.Orientation)).ToArray()));
             strBuilder.Append(CreateCurveClose);
 
-            if(curve.Accepted != null)
-                strBuilder.AppendFormat(AcceptedCreate, curve.Accepted.ObjectID, curve.Accepted.Radius, curve.Accepted.CenterpointID, curve.Accepted.Orientation);
+            if(curve.HasValue)
+                strBuilder.AppendFormat(AcceptedCreate, curve.InferredRadius, curve.InferredCenterpointID);
 
             strBuilder.Append(ParallelCreate);
             strBuilder.Append(String.Join(ListJoin, (from r in curve.ParallelCurves select String.Format(CreateCurveItem, r.ObjectID, r.Radius, r.CenterpointID, r.Orientation)).ToArray()));

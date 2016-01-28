@@ -140,8 +140,7 @@ namespace ParcelFabricCurveByInference
                 Marshal.ReleaseComObject(feature);
             }
 
-            ArcMap.Document.ActivatedView.Extent = extent;
-            ArcMap.Document.ActivatedView.Refresh();
+            ZoomTo(extent);
         }
                 
         InferredCurve getInferredCurveFromMenuItem(object sender)
@@ -227,14 +226,9 @@ namespace ParcelFabricCurveByInference
         private void ApplyInferredChange_Click(object sender, RoutedEventArgs e)
         {
             InferredCurve curve = getInferredCurveFromMenuItem(sender);
-            if (curve != null)
+            if (curve != null && context != null && context.SelectedItem != null)
             {
-                IFeatureLayer fl = getLayerByLayerName(curve.LayerName);
-                if (fl == null)
-                    MessageBox.Show(String.Format("The layer {0} could not be found", curve.LayerName));
-
-                CurveByInference context = new CurveByInference();
-                context.FindCurves(true, string.Format("{0} = {1}", fl.FeatureClass.OIDFieldName, curve.ObjectID));
+                context.UpdateCurves(new InferredCurve[] { curve });
             }
         }
 
@@ -296,7 +290,8 @@ namespace ParcelFabricCurveByInference
             RelatedCurve curve = getRelatedCurveFromMenuItem(sender) as RelatedCurve;
             if (curve != null && context != null && context.SelectedItem != null)
             {
-                context.SelectedItem.Accepted = curve;
+                context.SelectedItem.InferredRadius = curve.Radius;
+                context.SelectedItem.InferredCenterpointID = curve.CenterpointID;
             }
         }
 
@@ -309,14 +304,13 @@ namespace ParcelFabricCurveByInference
             CurveByInference context = new CurveByInference();
             this.DataContext = context;
 
-            context.FindCurves(false);
+            context.FindCurves();
         }
         private void Update_Click(object sender, RoutedEventArgs e)
         {
-            CurveByInference context = new CurveByInference();
-            this.DataContext = context;
-
-            context.FindCurves(true);
+            CurveByInference context = this.DataContext as CurveByInference;
+            if(context != null)
+                context.UpdateCurves();
         }
         private void Clear_Click(object sender, RoutedEventArgs e)
         {
