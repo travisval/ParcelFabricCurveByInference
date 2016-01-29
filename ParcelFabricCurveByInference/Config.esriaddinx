@@ -2,7 +2,7 @@
   <Name>ParcelFabricCurveByInference</Name>
   <AddInID>{762c331a-0a45-4384-a745-07404fa7fd3e}</AddInID>
   <Description>Type in a description for this Add-in.</Description>
-  <Version>0.7</Version>
+  <Version>0.8</Version>
   <Image>Images\ParcelFabricCurveByInference.png</Image>
   <Author>tval@esri.ca</Author>
   <Company>Esri Canada Ltd.</Company>
