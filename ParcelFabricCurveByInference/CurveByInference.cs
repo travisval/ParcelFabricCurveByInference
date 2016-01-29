@@ -50,12 +50,18 @@ namespace ParcelFabricCurveByInference
             Finished = true;
             Curves = new ObservableCollection<InferredCurve>();
 
-            m_pEd = (IEditor)ArcMap.Application.FindExtensionByName("esri object editor");
-            _IsEditing = m_pEd.EditState == esriEditState.esriStateEditing;
-            IEditEvents_Event editEvent = (IEditEvents_Event)m_pEd;
+            if (ArcMap.Application != null)
+            {
+                m_pEd = ArcMap.Application.FindExtensionByName("esri object editor") as IEditor;
+                if (m_pEd != null)
+                {
+                    _IsEditing = m_pEd.EditState == esriEditState.esriStateEditing;
+                    IEditEvents_Event editEvent = (IEditEvents_Event)m_pEd;
 
-            editEvent.OnStartEditing += new IEditEvents_OnStartEditingEventHandler(editEvent_OnStartEditing);
-            editEvent.OnStopEditing += new IEditEvents_OnStopEditingEventHandler(editEvent_OnStopEditing);
+                    editEvent.OnStartEditing += new IEditEvents_OnStartEditingEventHandler(editEvent_OnStartEditing);
+                    editEvent.OnStopEditing += new IEditEvents_OnStopEditingEventHandler(editEvent_OnStopEditing);
+                }
+            }
         }
 
         public void FindCurves(string whereClause = null)
@@ -188,6 +194,9 @@ namespace ParcelFabricCurveByInference
             if (hasOpenJob())
                 return;
 
+            if (m_pEd == null)
+                throw new Exception("Curves can not be updates without an editing environmanet");
+            
             IMap pMap = m_pEd.Map;
 
             myAOProgressor progressor = new myAOProgressor();
@@ -766,8 +775,13 @@ namespace ParcelFabricCurveByInference
             //double angle = Math.Atan((inferredCurve.FromPoint.Y - inferredCurve.ToPoint.Y) / (inferredCurve.FromPoint.X - inferredCurve.ToPoint.X));
             //double length = ((IProximityOperator)inferredCurve.FromPoint).ReturnDistance(inferredCurve.ToPoint);
             
+            //the proposed arc chord:
             ILine line = new Line() { FromPoint = inferredCurve.FromPoint, ToPoint = inferredCurve.ToPoint };
+
+            //half the delta of the proposed curve would be:
             double halfdelta = Math.Asin(line.Length / 2 / curve.Radius);
+
+            //the tangnet angle would be:
             double newAngle = line.Angle + halfdelta;
 
             bool bHasConfirmer = false;
@@ -1272,29 +1286,35 @@ namespace ParcelFabricCurveByInference
                     //staight line
                     if (foundPolyCurve.Length > ExcludeTangentsShorterThan)
                     {
-                        IPolyline polyline = (IPolyline4)foundFeature.ShapeCopy;
-                        ISegmentCollection collection = (ISegmentCollection)polyline;
-                        ISegment segement = collection.get_Segment(collection.SegmentCount - 1);
+                        IPolyline foundPolyLine = (IPolyline4)foundFeature.ShapeCopy;
+                        //ISegmentCollection collection = (ISegmentCollection)polyline;
+                        //ISegment segement = collection.get_Segment(collection.SegmentCount - 1);
                         ILine line = new Line();
-                        
-                        if (iRelativeOrientation == RelativeOrientation.To_From)
+
+                        double Angle = 0.0;
+                        switch (iRelativeOrientation)
                         {
-                            polyline.QueryTangent(esriSegmentExtension.esriNoExtension, 0, true, 1.0, line);
-                        }
-                        if (iRelativeOrientation == RelativeOrientation.From_To)
-                        {
-                            inPolycurve.QueryTangent(esriSegmentExtension.esriNoExtension, 1, true, 1.0, line);
-                        }
-                        else if (iRelativeOrientation == RelativeOrientation.To_To)
-                        {
-                            inPolycurve.QueryTangent(esriSegmentExtension.esriNoExtension, 0, true, 1.0, line);
-                        }
-                        if (iRelativeOrientation == RelativeOrientation.From_From)
-                        {   
-                            inPolycurve.QueryTangent(esriSegmentExtension.esriNoExtension, 1, true, 1.0, line);
+                            case RelativeOrientation.To_From:
+                                foundPolyLine.QueryTangent(esriSegmentExtension.esriExtendAtFrom, 0.0, true, 1.0, line);
+                                Angle = line.Angle;
+                                break;
+                            case RelativeOrientation.From_From:
+                                foundPolyLine.QueryTangent(esriSegmentExtension.esriExtendAtFrom, 0.0, true, 1.0, line);
+                                Angle = (line.Angle > 0) ? line.Angle - Math.PI : line.Angle + Math.PI;
+                                break;
+                            case RelativeOrientation.To_To:
+                                foundPolyLine.QueryTangent(esriSegmentExtension.esriExtendAtTo, 1.0, true, 1.0, line);
+                                Angle = (line.Angle > 0) ? line.Angle - Math.PI : line.Angle + Math.PI;
+                                break;
+                            case RelativeOrientation.From_To:
+                                foundPolyLine.QueryTangent(esriSegmentExtension.esriExtendAtTo, 1.0, true, 1.0, line);
+                                Angle = line.Angle;
+                                break;
                         }
 
-                        tangentLines.Add(new RelatedLine(foundFeature.OID, line.Angle, iRelativeOrientation));
+
+                        //Console.WriteLine("Add Straight Line: {0}, {1} -> {2}", foundFeature.OID, line.Angle, ((ILine)segement).Angle);
+                        tangentLines.Add(new RelatedLine(foundFeature.OID, Angle, iRelativeOrientation));
                     }
                     //if the feature has a null centrpointID then skip.
                     Marshal.ReleaseComObject(foundFeature);
