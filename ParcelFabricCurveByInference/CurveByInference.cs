@@ -400,8 +400,12 @@ namespace ParcelFabricCurveByInference
             //only need to get locks for parcels that have lines that are to be changed
 
             ILongArray affectedParcels = new LongArrayClass();
-            foreach (int i in updateCurves.Select(w=>w.Parcel).Distinct())
+            IFIDSet parcelFIDs = new FIDSet();
+            foreach (int i in updateCurves.Select(w => w.Parcel).Distinct())
+            {
+                parcelFIDs.Add(i);
                 affectedParcels.Add(i);
+            }
 
             if (!bIsUnVersioned && !bIsFileBasedGDB)
             {
@@ -472,16 +476,26 @@ namespace ParcelFabricCurveByInference
                 UpdateCircularArcValues((ITable)pFabricLinesFC, m_pQF, bIsUnVersioned, curvesSlice, progressor);
             }
 
-            //List<string> sInClauseList = InClauseFromOIDsList(Curves, 995);
-            //foreach (string InClause in sInClauseList)
-            //{
-            //    if (!cancelTracker.Continue())
-            //        return;
+            ICadastralFabricRegeneration pRegenFabric = new CadastralFabricRegenerator();
+            #region regenerator enum
+            // enum esriCadastralRegeneratorSetting
+            // esriCadastralRegenRegenerateGeometries         =   1
+            // esriCadastralRegenRegenerateMissingRadials     =   2,
+            // esriCadastralRegenRegenerateMissingPoints      =   4,
+            // esriCadastralRegenRemoveOrphanPoints           =   8,
+            // esriCadastralRegenRemoveInvalidLinePoints      =   16,
+            // esriCadastralRegenSnapLinePoints               =   32,
+            // esriCadastralRegenRepairLineSequencing         =   64,
+            // esriCadastralRegenRepairPartConnectors         =   128
 
-            //    m_pQF.WhereClause = pFabricLinesFC.OIDFieldName + " IN (" + InClause + ")";
-            //    if (!UpdateCircularArcValues((ITable)pFabricLinesFC, m_pQF, bIsUnVersioned, Curves, stepProgress, cancelTracker))
-            //        ;
-            //}
+            // By default, the bitmask member is 0 which will only regenerate geometries.
+            // (equivalent to passing in regeneratorBitmask = 1)
+            #endregion
+
+            pRegenFabric.CadastralFabric = pCadFabric;
+            pRegenFabric.RegeneratorBitmask = 7;
+            pRegenFabric.RegenerateParcels(parcelFIDs, false, progressor.cancelTracker);
+            
             m_pEd.StopOperation("Insert missing circular arc information.");
         }
 
