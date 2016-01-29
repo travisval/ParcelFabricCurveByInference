@@ -770,7 +770,7 @@ namespace ParcelFabricCurveByInference
             }
             return false;
         }
-        bool evaluateTrangent(InferredCurve inferredCurve, RelatedCurve curve)
+        bool evaluateTangent(InferredCurve inferredCurve, RelatedCurve curve)
         {
             //double angle = Math.Atan((inferredCurve.FromPoint.Y - inferredCurve.ToPoint.Y) / (inferredCurve.FromPoint.X - inferredCurve.ToPoint.X));
             //double length = ((IProximityOperator)inferredCurve.FromPoint).ReturnDistance(inferredCurve.ToPoint);
@@ -781,16 +781,26 @@ namespace ParcelFabricCurveByInference
             //half the delta of the proposed curve would be:
             double halfdelta = Math.Asin(line.Length / 2 / curve.Radius);
 
-            //the tangnet angle would be:
-            double newAngle = line.Angle + halfdelta;
-
             bool bHasConfirmer = false;
             foreach (RelatedLine tangent in inferredCurve.TangentLines)
             {
-                if (Math.Abs(tangent.Angle - newAngle) < 0.005)
+                //if this is at the from end of the suspected curve
+                if( tangent.Orientation == RelativeOrientation.From_From || tangent.Orientation == RelativeOrientation.From_To)
                 {
-                    bHasConfirmer = true;
-                    break;
+                    if (Math.Abs(line.Angle - tangent.Angle + halfdelta) < 0.0005)
+                    {
+                        bHasConfirmer = true;
+                        break;
+                    }
+                }
+                //else at the to end of the suspected curve
+                else if(tangent.Orientation == RelativeOrientation.To_From || tangent.Orientation == RelativeOrientation.To_To)
+                {
+                    if (Math.Abs(line.Angle - tangent.Angle - halfdelta) < 0.0005)
+                    {
+                        bHasConfirmer = true;
+                        break;
+                    }
                 }
             }
             if (bHasConfirmer)
@@ -812,7 +822,7 @@ namespace ParcelFabricCurveByInference
                     return;
                 }
                 //search the tagent lines for one conformer, if found return
-                if (inferredCurve.TangentLines.Count > 0 && evaluateTrangent(inferredCurve, inferredCurve.TangentCurves[0]))
+                if (inferredCurve.TangentLines.Count > 0 && evaluateTangent(inferredCurve, inferredCurve.TangentCurves[0]))
                 {
                     return;
                 }
@@ -848,7 +858,7 @@ namespace ParcelFabricCurveByInference
                         return;
                     }
                     //search the tagent lines for one conformer, if found return
-                    if (inferredCurve.TangentLines.Count > 0 && evaluateTrangent(inferredCurve, d1.Key))
+                    if (inferredCurve.TangentLines.Count > 0 && evaluateTangent(inferredCurve, d1.Key))
                     {
                         return;
                     }
