@@ -49,8 +49,8 @@ namespace ParcelFabricCurveByInference
 
             AngleToleranceTangentCompareInDegrees = 1.5;
             StraightLinesBreakLessThanInDegrees = 0.033;
-            MaximumDeltaInDegrees = 1;
-            ExcludeTangentsShorterThanScaler = 1.1;
+            MaximumDeltaInDegrees = 2.5;
+            ExcludeTangentsShorterThanScaler = 0.9;
             OrthogonalSearchDistance = 70;
         }
 
