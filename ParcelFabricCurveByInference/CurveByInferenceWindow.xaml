@@ -166,6 +166,7 @@
                             <ListView.Resources>
                                 <ContextMenu x:Key="ItemContextMenu">
                                     <MenuItem Header="Flash Feature" Click="FlashInferred_Click" CommandParameter="{Binding}"></MenuItem>
+                                    <MenuItem Header="Select Feature" Click="SelectInferred_Click" CommandParameter="{Binding}"></MenuItem>
                                     <MenuItem Header="Pan to Feature" Click="PanToInferred_Click" CommandParameter="{Binding}"></MenuItem>
                                     <MenuItem Header="Zoom to Feature" Click="ZoomToInferred_Click" CommandParameter="{Binding}"></MenuItem>
                                     <MenuItem Header="Zoom to Related Features" Click="ZoomToInferredRelated_Click" CommandParameter="{Binding}"></MenuItem>

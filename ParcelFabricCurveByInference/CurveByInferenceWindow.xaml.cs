@@ -108,7 +108,7 @@ namespace ParcelFabricCurveByInference
             ArcMap.Document.ActivatedView.Refresh();
             
         }
-        private void ZoomToRelated(InferredCurve curve, bool select)
+        private void SelectAndZoom(InferredCurve curve, bool zoom, bool select, bool related)
         {
             IFeatureLayer fl = getLayerByLayerName(curve.LayerName);
             if (fl == null)
@@ -116,9 +116,12 @@ namespace ParcelFabricCurveByInference
 
             List<int> oids = new List<int>();
             oids.Add(curve.ObjectID);
-            oids.AddRange(curve.ParallelCurves.Select(w => w.ObjectID));
-            oids.AddRange(curve.TangentCurves.Select(w => w.ObjectID));
-            oids.AddRange(curve.TangentLines.Select(w => w.ObjectID));
+            if (related)
+            {
+                oids.AddRange(curve.ParallelCurves.Select(w => w.ObjectID));
+                oids.AddRange(curve.TangentCurves.Select(w => w.ObjectID));
+                oids.AddRange(curve.TangentLines.Select(w => w.ObjectID));
+            }
 
             IEnvelope extent = null;
 
@@ -140,7 +143,14 @@ namespace ParcelFabricCurveByInference
                 Marshal.ReleaseComObject(feature);
             }
 
-            ZoomTo(extent);
+            if (zoom)
+            {
+                ZoomTo(extent);
+            }
+            else
+            {
+                ArcMap.Document.ActivatedView.Refresh();
+            }
         }
                 
         InferredCurve getInferredCurveFromMenuItem(object sender)
@@ -182,6 +192,15 @@ namespace ParcelFabricCurveByInference
                 Marshal.ReleaseComObject(feature);
             }
         }
+        
+        private void SelectInferred_Click(object sender, RoutedEventArgs e)
+        {
+            InferredCurve curve = getInferredCurveFromMenuItem(sender);
+            if (curve != null)
+            {
+                SelectAndZoom(curve, false, true, false);
+            }
+        }
 
         private void PanToInferred_Click(object sender, RoutedEventArgs e)
         {
@@ -199,9 +218,7 @@ namespace ParcelFabricCurveByInference
             InferredCurve curve = getInferredCurveFromMenuItem(sender);
             if (curve != null)
             {
-                IFeature feature = GetFeature(curve.LayerName, curve.ObjectID);
-                ZoomTo(feature.Extent);
-                Marshal.ReleaseComObject(feature);
+                SelectAndZoom(curve, true, false, false);
             }
         }
 
@@ -210,7 +227,7 @@ namespace ParcelFabricCurveByInference
             InferredCurve curve = getInferredCurveFromMenuItem(sender);
             if (curve != null)
             {
-                ZoomToRelated(curve, false);
+                SelectAndZoom(curve, true, false, true);
             }
         }
         
@@ -219,7 +236,7 @@ namespace ParcelFabricCurveByInference
             InferredCurve curve = getInferredCurveFromMenuItem(sender);
             if (curve != null)
             {
-                ZoomToRelated(curve, true);
+                SelectAndZoom(curve, false, true, true);
             }
         }
 
