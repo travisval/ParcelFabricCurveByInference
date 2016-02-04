@@ -351,7 +351,7 @@ namespace ParcelFabricCurveByInference
         
         void UpdateCurves(ICadastralFabric pCadFabric, IFeatureClass pFabricLinesFC, IEnumerable<InferredCurve> curvesToUpdate, myProgessor progressor)
         {
-            List<InferredCurve> updateCurves = (from InferredCurve c in Curves where c.Action==UpdateAction.Update select c).ToList();
+            IEnumerable<InferredCurve> updateCurves = (from InferredCurve c in curvesToUpdate where c.Action == UpdateAction.Update select c);
 
             bool bIsFileBasedGDB = false;
             bool bIsUnVersioned = false;
@@ -466,8 +466,9 @@ namespace ParcelFabricCurveByInference
             // m_pEd.StartOperation();
 
             //Slice the list into sets that will fit into an in list
-            progressor.setStepProgressorProperties(updateCurves.Count, "Updating geometries");
-            for (var i = 0; i < updateCurves.Count; i += 995)
+            int curveCount = updateCurves.Count();
+            progressor.setStepProgressorProperties(curveCount, "Updating geometries");
+            for (var i = 0; i < curveCount; i += 995)
             {
                 Dictionary<int, InferredCurve> curvesSlice = updateCurves.Skip(i).Take(995).ToDictionary(w => w.ObjectID);
                 if (!progressor.Continue())
