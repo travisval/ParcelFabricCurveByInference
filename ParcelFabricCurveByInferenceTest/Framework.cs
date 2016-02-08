@@ -454,5 +454,14 @@ namespace ParcelFabricCurveByInferenceTest
 
             return strBuilder.ToString();
         }
+
+        public static double ToRadians(double degrees)
+        {
+            return degrees / (180 / Math.PI);
+        }
+        public static double toDegrees(double radians)
+        {
+            return radians * (180 / Math.PI);
+        }
     }
 }

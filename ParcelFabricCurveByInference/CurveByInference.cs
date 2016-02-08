@@ -794,7 +794,7 @@ namespace ParcelFabricCurveByInference
             ILine line = new Line() { FromPoint = inferredCurve.FromPoint, ToPoint = inferredCurve.ToPoint };
 
             //half the delta of the proposed curve would be:
-            double halfdelta = Math.Asin(line.Length / 2 / curve.Radius);
+            double halfdelta = toDegrees(Math.Asin(line.Length / 2 / curve.Radius));
 
             bool bHasConfirmer = false;
             foreach (RelatedLine tangent in inferredCurve.TangentLines)
@@ -802,7 +802,7 @@ namespace ParcelFabricCurveByInference
                 //if this is at the from end of the suspected curve
                 if( tangent.Orientation == RelativeOrientation.From_From || tangent.Orientation == RelativeOrientation.From_To)
                 {
-                    if (Math.Abs(line.Angle - tangent.Angle + halfdelta) < 0.0005)
+                    if (Math.Abs(toDegrees(line.Angle) - tangent.Angle + halfdelta) < 0.25)
                     {
                         bHasConfirmer = true;
                         break;
@@ -811,7 +811,7 @@ namespace ParcelFabricCurveByInference
                 //else at the to end of the suspected curve
                 else if(tangent.Orientation == RelativeOrientation.To_From || tangent.Orientation == RelativeOrientation.To_To)
                 {
-                    if (Math.Abs(line.Angle - tangent.Angle - halfdelta) < 0.0005)
+                    if (Math.Abs(toDegrees(line.Angle) - tangent.Angle - halfdelta) < 0.25)
                     {
                         bHasConfirmer = true;
                         break;
@@ -1339,7 +1339,7 @@ namespace ParcelFabricCurveByInference
 
 
                         //Console.WriteLine("Add Straight Line: {0}, {1} -> {2}", foundFeature.OID, line.Angle, ((ILine)segement).Angle);
-                        tangentLines.Add(new RelatedLine(foundFeature.OID, Angle, iRelativeOrientation));
+                        tangentLines.Add(new RelatedLine(foundFeature.OID, toDegrees(Angle), iRelativeOrientation));
                     }
                     //if the feature has a null centrpointID then skip.
                     Marshal.ReleaseComObject(foundFeature);
@@ -1563,5 +1563,14 @@ namespace ParcelFabricCurveByInference
         }
 
         #endregion
+
+        private double ToRadians(double degrees)
+        {
+            return degrees / ( 180 / Math.PI );
+        }
+        private double toDegrees(double radians)
+        {
+            return radians * (180 / Math.PI);
+        }
     }
 }
