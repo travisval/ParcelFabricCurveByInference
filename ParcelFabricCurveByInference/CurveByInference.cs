@@ -796,33 +796,30 @@ namespace ParcelFabricCurveByInference
             //half the delta of the proposed curve would be:
             double halfdelta = toDegrees(Math.Asin(line.Length / 2 / curve.Radius));
 
-            bool bHasConfirmer = false;
+            IVector3D chordVector = new Vector3D() as IVector3D;
+            chordVector.PolarSet(line.Angle, 0, 1);
+
             foreach (RelatedLine tangent in inferredCurve.TangentLines)
             {
-                //if this is at the from end of the suspected curve
-                if( tangent.Orientation == RelativeOrientation.From_From || tangent.Orientation == RelativeOrientation.From_To)
+                IVector3D tangentVector = new Vector3D() as IVector3D;
+                tangentVector.PolarSet(ToRadians(tangent.Angle), 0, 1);
+
+                bool dMatch = false;
+                double dVectDiff = toDegrees(Math.Acos(chordVector.DotProduct(tangentVector)));
+                if (tangent.Orientation == RelativeOrientation.From_To)
+                    dMatch = Math.Abs(dVectDiff - halfdelta) < CurveByInferenceSettings.Instance.MaxTangentLineAngleInDegrees;
+                else if (tangent.Orientation == RelativeOrientation.To_From)
+                    dMatch = Math.Abs(dVectDiff + halfdelta) < CurveByInferenceSettings.Instance.MaxTangentLineAngleInDegrees;
+                else if (tangent.Orientation == RelativeOrientation.From_From)
+                    dMatch = Math.Abs(dVectDiff + halfdelta) < CurveByInferenceSettings.Instance.MaxTangentLineAngleInDegrees;
+                else if (tangent.Orientation == RelativeOrientation.To_To)
+                    dMatch = Math.Abs(dVectDiff - halfdelta) < CurveByInferenceSettings.Instance.MaxTangentLineAngleInDegrees;
+                if (dMatch)
                 {
-                    if (Math.Abs(toDegrees(line.Angle) - tangent.Angle + halfdelta) < CurveByInferenceSettings.Instance.MaxTangentLineAngleInDegrees)
-                    {
-                        bHasConfirmer = true;
-                        break;
-                    }
+                    inferredCurve.InferredRadius = inferredCurve.TangentCurves[0].Radius;
+                    inferredCurve.InferredCenterpointID = inferredCurve.TangentCurves[0].CenterpointID;
+                    return true;
                 }
-                //else at the to end of the suspected curve
-                else if(tangent.Orientation == RelativeOrientation.To_From || tangent.Orientation == RelativeOrientation.To_To)
-                {
-                    if (Math.Abs(toDegrees(line.Angle) - tangent.Angle - halfdelta) < CurveByInferenceSettings.Instance.MaxTangentLineAngleInDegrees)
-                    {
-                        bHasConfirmer = true;
-                        break;
-                    }
-                }
-            }
-            if (bHasConfirmer)
-            {
-                inferredCurve.InferredRadius = inferredCurve.TangentCurves[0].Radius;
-                inferredCurve.InferredCenterpointID = inferredCurve.TangentCurves[0].CenterpointID;
-                return true;
             }
             return false;
         }
