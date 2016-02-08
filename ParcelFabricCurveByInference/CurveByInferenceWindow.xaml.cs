@@ -246,6 +246,9 @@ namespace ParcelFabricCurveByInference
             if (curve != null && context != null && context.SelectedItem != null)
             {
                 context.UpdateCurves(new InferredCurve[] { curve });
+
+                //remove curve after update
+                context.Curves.Remove(curve);
             }
         }
 
@@ -326,8 +329,13 @@ namespace ParcelFabricCurveByInference
         private void Update_Click(object sender, RoutedEventArgs e)
         {
             CurveByInference context = this.DataContext as CurveByInference;
-            if(context != null)
+            if (context != null)
+            {
                 context.UpdateCurves();
+
+                //clear curves after update all
+                this.DataContext = new CurveByInference();
+            }
         }
         private void Clear_Click(object sender, RoutedEventArgs e)
         {
