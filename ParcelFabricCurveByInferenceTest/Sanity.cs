@@ -18,6 +18,27 @@ namespace ParcelFabricCurveByInferenceTest
             #region expectedData
 
             List<InferredCurve> expectedResults = new List<InferredCurve>() { 
+                 new InferredCurve(356638, "test", new List<RelatedCurve>() {
+                      new RelatedCurve(356637, -864.159989779026, 152265, CurveByInference.RelativeOrientation.From_To)     }){
+                      ParallelCurves = new List<RelatedCurve>() {
+                      },
+                      TangentLines = new List<RelatedLine>() {
+
+                      }},
+                 new InferredCurve(356650, "test", new List<RelatedCurve>() {
+                      new RelatedCurve(356651, 154.773869942494, 152269, CurveByInference.RelativeOrientation.To_From)     }){
+                      ParallelCurves = new List<RelatedCurve>() {
+                      },
+                      TangentLines = new List<RelatedLine>() {
+
+                      }},
+                 new InferredCurve(356655, "test", new List<RelatedCurve>() {
+                      new RelatedCurve(356654, 196.383390812253, 152272, CurveByInference.RelativeOrientation.From_To)     }){
+                      ParallelCurves = new List<RelatedCurve>() {
+                      },
+                      TangentLines = new List<RelatedLine>() {
+                           new RelatedLine(356656, -0.104993798047734, CurveByInference.RelativeOrientation.To_From)
+                      }},
                  new InferredCurve(356663, "test", new List<RelatedCurve>() {
                       new RelatedCurve(356664, -399.413630657088, 152274, CurveByInference.RelativeOrientation.To_From)     }){
                       ParallelCurves = new List<RelatedCurve>() {
@@ -81,6 +102,13 @@ namespace ParcelFabricCurveByInferenceTest
                       new RelatedCurve(378209, -449.809999037129, 161796, CurveByInference.RelativeOrientation.To_From)     }){
                       ParallelCurves = new List<RelatedCurve>() {
                       },
+                      TangentLines = new List<RelatedLine>() {
+
+                      }},
+                 new InferredCurve(378212, "test", new List<RelatedCurve>() {
+                      new RelatedCurve(378211, -450.132869251069, 161794, CurveByInference.RelativeOrientation.From_To)     }){
+                      ParallelCurves = new List<RelatedCurve>() {
+                            new RelatedCurve(375548, -459.432762870721, 160866, CurveByInference.RelativeOrientation.Parallel)          },
                       TangentLines = new List<RelatedLine>() {
 
                       }},

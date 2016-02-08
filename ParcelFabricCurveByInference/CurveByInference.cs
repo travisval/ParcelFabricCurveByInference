@@ -1426,6 +1426,26 @@ namespace ParcelFabricCurveByInference
         public enum RelativeOrientation { To_To = 1, To_From = 2, From_To = 3, From_From = 4, Same = 5, Reverse = 6, Parallel = 7}
         private RelativeOrientation GetRelativeOrientation(IPolycurve pFoundLineAsPolyCurve, IPolycurve inPolycurve)
         {
+            //check to see if the segments overlap
+            double line_to = ((IProximityOperator)pFoundLineAsPolyCurve).ReturnDistance(inPolycurve.ToPoint);
+            double line_from = ((IProximityOperator)pFoundLineAsPolyCurve).ReturnDistance(inPolycurve.FromPoint);
+
+            if (line_to < 0.005 && line_from < 0.005)
+            {
+                //if they do, find the relative orientation and then return Same or Reverse
+                RelativeOrientation orientation = GetRelativeOrientation_ignoreSame(pFoundLineAsPolyCurve, inPolycurve);
+                if (orientation == RelativeOrientation.To_To || orientation == RelativeOrientation.From_From)
+                    return RelativeOrientation.Same;
+                if (orientation == RelativeOrientation.From_To || orientation == RelativeOrientation.To_From)
+                    return RelativeOrientation.Reverse;
+
+                throw new Exception("Invalid relative orientation for overlapping segments returend");
+            }
+            //if they don't, just get the relative orientation
+            return GetRelativeOrientation_ignoreSame(pFoundLineAsPolyCurve, inPolycurve);
+        }
+        private RelativeOrientation GetRelativeOrientation_ignoreSame(IPolycurve pFoundLineAsPolyCurve, IPolycurve inPolycurve)
+        {
             //iRelativeOrientation == 1 --> closest points are original TO and found TO
             //iRelativeOrientation == 2 --> closest points are original TO and found FROM
             //iRelativeOrientation == 3 --> closest points are original FROM and found TO
@@ -1435,45 +1455,35 @@ namespace ParcelFabricCurveByInference
             double min = 0;
 
             double To_To = min = ((IProximityOperator)pFoundLineAsPolyCurve.ToPoint).ReturnDistance(inPolycurve.ToPoint);
-            double From_From = ((IProximityOperator)pFoundLineAsPolyCurve.FromPoint).ReturnDistance(inPolycurve.FromPoint);
-
-            //Check to see if it is the same line
-            if (To_To < 0.005 && From_From < 0.005)
-                return (RelativeOrientation.Same);
-            
-            //short cuts
             if (To_To < 0.005)
                 return RelativeOrientation.To_To;
-            if (From_From < 0.005)
-                return RelativeOrientation.From_From;
 
-            //check to see whats closer
-            if (From_From < To_To)
+
+            double From_From = ((IProximityOperator)pFoundLineAsPolyCurve.FromPoint).ReturnDistance(inPolycurve.FromPoint);
+            if (From_From < 0.005)
             {
-                ret = RelativeOrientation.From_From;
+                return RelativeOrientation.From_From;
+            }
+            else if (From_From < To_To)
+            {
                 min = From_From;
+                ret = RelativeOrientation.From_From;
             }
 
+
             double From_To = ((IProximityOperator)pFoundLineAsPolyCurve.ToPoint).ReturnDistance(inPolycurve.FromPoint);
-            double To_From = ((IProximityOperator)pFoundLineAsPolyCurve.FromPoint).ReturnDistance(inPolycurve.ToPoint);
-
-            //Check to see if it is the same line
-            if (From_To < 0.005 && To_From < 0.005)
-                return (RelativeOrientation.Reverse);
-
-            //short cuts
             if (From_To < 0.005)
+            {
                 return RelativeOrientation.From_To;
-            if (To_From < 0.005)
-                return RelativeOrientation.To_From;
-
-            //check to see whats closer
+            }
             if (From_To < min)
             {
                 ret = RelativeOrientation.From_To;
                 min = From_To;
             }
-            //check to see whats closer
+
+
+            double To_From = ((IProximityOperator)pFoundLineAsPolyCurve.FromPoint).ReturnDistance(inPolycurve.ToPoint);
             if (To_From < min)
             {
                 ret = RelativeOrientation.To_From;
