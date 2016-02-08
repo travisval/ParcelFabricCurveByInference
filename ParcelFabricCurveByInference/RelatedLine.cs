@@ -28,7 +28,7 @@ namespace ParcelFabricCurveByInference
         public bool Equals(RelatedLine x, RelatedLine y)
         {
             if (compareOIDs)
-                return (x.Orientation == y.Orientation && x.ObjectID == y.ObjectID && Math.Abs(x.Angle - y.Angle) < 0.25);
+                return (x.Orientation == y.Orientation && x.ObjectID == y.ObjectID && Math.Abs(x.Angle - y.Angle) < CurveByInferenceSettings.Instance.MaxTangentLineAngleInDegrees);
             return (Math.Abs(x.Angle - y.Angle) < 0.005);
         }
 

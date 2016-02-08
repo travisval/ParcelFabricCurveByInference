@@ -802,7 +802,7 @@ namespace ParcelFabricCurveByInference
                 //if this is at the from end of the suspected curve
                 if( tangent.Orientation == RelativeOrientation.From_From || tangent.Orientation == RelativeOrientation.From_To)
                 {
-                    if (Math.Abs(toDegrees(line.Angle) - tangent.Angle + halfdelta) < 0.25)
+                    if (Math.Abs(toDegrees(line.Angle) - tangent.Angle + halfdelta) < CurveByInferenceSettings.Instance.MaxTangentLineAngleInDegrees)
                     {
                         bHasConfirmer = true;
                         break;
@@ -811,7 +811,7 @@ namespace ParcelFabricCurveByInference
                 //else at the to end of the suspected curve
                 else if(tangent.Orientation == RelativeOrientation.To_From || tangent.Orientation == RelativeOrientation.To_To)
                 {
-                    if (Math.Abs(toDegrees(line.Angle) - tangent.Angle - halfdelta) < 0.25)
+                    if (Math.Abs(toDegrees(line.Angle) - tangent.Angle - halfdelta) < CurveByInferenceSettings.Instance.MaxTangentLineAngleInDegrees)
                     {
                         bHasConfirmer = true;
                         break;

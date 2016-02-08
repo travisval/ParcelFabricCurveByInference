@@ -42,6 +42,10 @@ namespace ParcelFabricCurveByInference
         /// The size of the buffer applies to the lines that are extended from either end of the query line when looking for tangents
         /// </summary>
         public double TangentQueryBuffer = 0.1;
+        /// <summary>
+        /// The max difference (in degrees) between a straight line and the inferred curve before the angles are not considered equal
+        /// </summary>
+        public double MaxTangentLineAngleInDegrees = 0.25;
 
         private CurveByInferenceSettings()
         {
