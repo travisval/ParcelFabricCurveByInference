@@ -21,189 +21,205 @@ namespace ParcelFabricCurveByInference
 {
     public class CurveByInference : INotifyPropertyChanged
     {
+        IEditor m_pEd = null;
+
         public ObservableCollection<InferredCurve> Curves { get; private set; }
 
         public MyMessageBox messageBox = new FormsMessageBox();
 
+        public InferredCurve _SelectedItem;
+        public InferredCurve SelectedItem { 
+            get { return _SelectedItem; } 
+            set { _SelectedItem = value; RaisePropertyChanged("SelectedItem"); } }
+
         bool _Finished;
-        public bool Finished { get { return _Finished; } set { _Finished = value; RaisePropertyChanged("Finished"); } }
+        public bool Finished { get { return _Finished; } set { _Finished = value; RaisePropertyChanged("Finished", "IsEditing"); } }
         
         int _Total = 0;
         public int Total { get { return _Total; } private set { _Total = value; RaisePropertyChanged("Total"); } }
         int _Inferred = 0;
         public int Inferred { get { return _Inferred; } private set { _Inferred = value; RaisePropertyChanged("Inferred"); } }
-        
+
+        bool _IsEditing = false;
+        public bool IsEditing { get { return Finished && _IsEditing; } private set { _IsEditing = value; RaisePropertyChanged("IsEditing"); } }
+        void editEvent_OnStopEditing(bool save) { IsEditing = false; } //this event fires before IEditor actually closes the edit session
+        void editEvent_OnStartEditing() { IsEditing = true; }
+
         public CurveByInference()
         {
             Finished = true;
             Curves = new ObservableCollection<InferredCurve>();
+
+            if (ArcMap.Application != null)
+            {
+                m_pEd = ArcMap.Application.FindExtensionByName("esri object editor") as IEditor;
+                if (m_pEd != null)
+                {
+                    _IsEditing = m_pEd.EditState == esriEditState.esriStateEditing;
+                    IEditEvents_Event editEvent = (IEditEvents_Event)m_pEd;
+
+                    editEvent.OnStartEditing += new IEditEvents_OnStartEditingEventHandler(editEvent_OnStartEditing);
+                    editEvent.OnStopEditing += new IEditEvents_OnStopEditingEventHandler(editEvent_OnStopEditing);
+                }
+            }
         }
 
-        public void FindCurves(bool withUpdate, string whereClause = null)
+        public void FindCurves(string whereClause = null)
         {
-            Finished = false;
-            
-            IMap pMap = null;
+            IMap pMap = ArcMap.Document.ActiveView.FocusMap;
 
-            IEditor m_pEd = (IEditor)ArcMap.Application.FindExtensionByName("esri object editor");
-            if (withUpdate)
-            {
-                if (m_pEd.EditState == esriEditState.esriStateNotEditing)
-                {
-                    messageBox.Show("Please start editing first, and try again.");
-                    return;
-                }
-                pMap = m_pEd.Map;
-            }
-            else
-            {
-                pMap = ArcMap.Document.ActiveView.FocusMap;
-            }
-
-            //get Cadastral Editor
-            UID pUID = new UIDClass();
-            pUID.Value = "{114D685F-99B7-4B63-B09F-6D1A41A4DDC1}";
-            ICadastralExtensionManager2 pCadExtMan = (ICadastralExtensionManager2)ArcMap.Application.FindExtensionByCLSID(pUID);
-            ICadastralEditor pCadEd = (ICadastralEditor)ArcMap.Application.FindExtensionByCLSID(pUID);
-
-            //check if there is a Manual Mode "modify" job active ===========
-            ICadastralPacketManager pCadPacMan = (ICadastralPacketManager)pCadExtMan;
-            if (pCadPacMan.PacketOpen)
-            {
-                messageBox.Show("The command cannot be used when there is an open job.\r\nPlease finish or discard the open job, and try again.");
+            if (hasOpenJob())
                 return;
-            }
-            
+
             IRelationshipClass relationshipClass = null;
             ISelectionSet relatedSelectionSet = null;
 
             myAOProgressor progressor = new myAOProgressor();
             try
             {
-                progressor.setStepProgressorProperties(1, "Initializing");
-                IEditProperties2 pEditorProps2 = (IEditProperties2)m_pEd;
-                IActiveView pActiveView = ArcMap.Document.ActiveView;
-                IAngularConverter pAngConv = new AngularConverterClass();
+                Finished = false;
 
-                var CFLayers = GetFabricLayers(pMap);
-                if(CFLayers.Count == 0)
+                progressor.setStepProgressorProperties(1, "Initializing");
+                ICadastralFabricLayer CFLayer = GetFabricLayer(pMap);
+
+                IFeatureLayer CFLineLayer = CFLayer.get_CadastralSubLayer(esriCadastralFabricRenderer.esriCFRLines);
+                IFeatureLayer CFParcelLayer = CFLayer.get_CadastralSubLayer(esriCadastralFabricRenderer.esriCFRParcels);
+
+                //Verify that the needed fields are present                                
+                int idxParcelIDFld = CFLineLayer.FeatureClass.Fields.FindField("ParcelID");
+                int idxCENTERPTID = CFLineLayer.FeatureClass.Fields.FindField("CenterPointID");
+                int idxRADIUS = CFLineLayer.FeatureClass.Fields.FindField("Radius");
+                if (idxParcelIDFld == -1 || idxCENTERPTID == -1 || idxRADIUS == -1)
                 {
-                    messageBox.Show("No cadastral fabric layers found in the current map.");
+                    messageBox.Show("One or more of the following fields are missing (ParcelID, CenterPointID, Radius).");
                     return;
                 }
-                if (CFLayers.Count > 1)
+                    
+                //for each CF line feature class 
+                IFeatureSelection CFLineFeatureSelection = (IFeatureSelection)CFLineLayer;
+                IFeatureSelection CFParcelFeatureSelection = (IFeatureSelection)CFParcelLayer;
+
+                ISelectionSet selectionSet = null;
+                if (CFParcelFeatureSelection.SelectionSet.Count > 0)
                 {
-                    messageBox.Show("Multiple cadastral fabric layers found in the current map.");
+                    //parcels selected
+                        
+                    //Create memory relationship class to help with the mapping
+                    IMemoryRelationshipClassFactory MemoryRCF = new MemoryRelationshipClassFactoryClass();
+                    relationshipClass = MemoryRCF.Open("Parcel_Layer_Rel", CFParcelLayer.FeatureClass, "ObjectID", CFLineLayer.FeatureClass, "ParcelID", "forward", "backward", esriRelCardinality.esriRelCardinalityOneToMany);
+
+                    //convert selection set to ISet of rows
+                    ISet polySet = new Set();
+                    ICursor cursor;
+                    CFParcelFeatureSelection.SelectionSet.Search(null, false, out cursor);
+                    IRow row = null;
+                    while((row = cursor.NextRow()) != null)
+                        polySet.Add(row);
+                    polySet.Reset();
+
+                    //use the relationship class to find related rows
+                    ISet lineSet = relationshipClass.GetObjectsRelatedToObjectSet(polySet);
+
+                    //convert set back to selection set
+                    lineSet.Reset();
+                        
+                    //create an empty selection set (there should be a better way to do this....
+                        
+                    //will only evaluate the lines related to the parcels that are selected
+                    //selectionSet = CFLineLayer.FeatureClass.Select(new QueryFilter() { WhereClause = "1=0" }, esriSelectionType.esriSelectionTypeIDSet, esriSelectionOption.esriSelectionOptionNormal, null);
+
+                    //will union the current line selection and the parcel selection
+                    relatedSelectionSet = CFLineFeatureSelection.SelectionSet.Select(null, esriSelectionType.esriSelectionTypeIDSet, esriSelectionOption.esriSelectionOptionNormal, null);
+                        
+                    while ((row = (IRow)lineSet.Next()) != null)
+                    {
+                        relatedSelectionSet.Add(row.OID);
+                        Marshal.ReleaseComObject(row);
+                    }
+                    Marshal.ReleaseComObject(lineSet);
+                    polySet.Reset();
+                    while ((row = (IRow)polySet.Next()) != null)
+                        Marshal.ReleaseComObject(row);
+                    Marshal.ReleaseComObject(polySet);
+
+                    selectionSet = relatedSelectionSet;
+                }
+                else if (CFLineFeatureSelection.SelectionSet.Count > 0)
+                {
+                    //lines selected
+                    selectionSet = CFLineFeatureSelection.SelectionSet;
+                }
+                    
+                else
+                {
+                    if (DialogResult.OK != messageBox.Show("You are about to run the add-in on the entire feature class, this could take a long time.  Proceeed?", "Long Operation", MessageBoxButtons.OKCancel))
+                        return;
+                }
+
+                    
+                FindCurves(CFLineLayer.Name, CFLineLayer.FeatureClass, selectionSet, whereClause, idxRADIUS, idxCENTERPTID, idxParcelIDFld, progressor);
+                if (Curves.Count == 0)
+                {
+                    messageBox.Show("No inferred curved lines found.");
                     return;
                 }
-                ICadastralFabricLayer CFLayer = CFLayers.First();
+            }
+            catch (Exception Exx)
+            {
+                messageBox.Show(Exx.Message);
+
+                if (relationshipClass != null)
+                    Marshal.ReleaseComObject(relationshipClass);
+                if (relatedSelectionSet != null)
+                    Marshal.ReleaseComObject(relatedSelectionSet);
+            }
+            finally
+            {
+                progressor.Dispose();
+                Finished = true;
+            }
+        }
+        public void UpdateCurves(IEnumerable<InferredCurve> updateCurves = null)
+        {
+            if (updateCurves == null)
+                updateCurves = Curves;
+
+
+            if (m_pEd.EditState == esriEditState.esriStateNotEditing)
+            {
+                messageBox.Show("Please start editing first, and try again.");
+                return;
+            }
+
+            if (hasOpenJob())
+                return;
+
+            if (m_pEd == null)
+                throw new Exception("Curves can not be updates without an editing environmanet");
+            
+            IMap pMap = m_pEd.Map;
+
+            myAOProgressor progressor = new myAOProgressor();
+            try
+            {
+                Finished = false;
+                progressor.setStepProgressorProperties(1, "Initializing");
+                ICadastralFabricLayer CFLayer = GetFabricLayer(pMap);
                 ICadastralFabric pCadFabric = CFLayer.CadastralFabric;
 
                 IFeatureLayer CFLineLayer = CFLayer.get_CadastralSubLayer(esriCadastralFabricRenderer.esriCFRLines);
                 IFeatureLayer CFParcelLayer = CFLayer.get_CadastralSubLayer(esriCadastralFabricRenderer.esriCFRParcels);
-                
-                try
+
+                if (updateCurves.Count() > 0)
+                    UpdateCurves(pCadFabric, CFLineLayer.FeatureClass, updateCurves, progressor);
+            }
+            catch (Exception Exx)
+            {
+                messageBox.Show(Exx.Message);
+
+                if (m_pEd != null && m_pEd.HasEdits())
                 {
-                    
-                    //Verify that the needed fields are present                                
-                    int idxParcelIDFld = CFLineLayer.FeatureClass.Fields.FindField("ParcelID");
-                    int idxCENTERPTID = CFLineLayer.FeatureClass.Fields.FindField("CenterPointID");
-                    int idxRADIUS = CFLineLayer.FeatureClass.Fields.FindField("Radius");
-                    if (idxParcelIDFld == -1 || idxCENTERPTID == -1 || idxRADIUS == -1)
-                    {
-                        messageBox.Show("One or more of the following fields are missing (ParcelID, CenterPointID, Radius).");
-                        return;
-                    }
-                    
-                    HashSet<int> parcelsToLock = new HashSet<int>();
-                    //for each CF line feature class 
-                    IFeatureSelection CFLineFeatureSelection = (IFeatureSelection)CFLineLayer;
-                    IFeatureSelection CFParcelFeatureSelection = (IFeatureSelection)CFParcelLayer;
-
-                    ISelectionSet selectionSet = null;
-                    if (CFParcelFeatureSelection.SelectionSet.Count > 0)
-                    {
-                        //parcels selected
-                        
-                        //Create memory relationship class to help with the mapping
-                        IMemoryRelationshipClassFactory MemoryRCF = new MemoryRelationshipClassFactoryClass();
-                        relationshipClass = MemoryRCF.Open("Parcel_Layer_Rel", CFParcelLayer.FeatureClass, "ObjectID", CFLineLayer.FeatureClass, "ParcelID", "forward", "backward", esriRelCardinality.esriRelCardinalityOneToMany);
-
-                        //convert selection set to ISet of rows
-                        ISet polySet = new Set();
-                        ICursor cursor;
-                        CFParcelFeatureSelection.SelectionSet.Search(null, false, out cursor);
-                        IRow row = null;
-                        while((row = cursor.NextRow()) != null)
-                            polySet.Add(row);
-                        polySet.Reset();
-
-                        //use the relationship class to find related rows
-                        ISet lineSet = relationshipClass.GetObjectsRelatedToObjectSet(polySet);
-
-                        //convert set back to selection set
-                        lineSet.Reset();
-                        
-                        //create an empty selection set (there should be a better way to do this....
-                        
-                        //will only evaluate the lines related to the parcels that are selected
-                        //selectionSet = CFLineLayer.FeatureClass.Select(new QueryFilter() { WhereClause = "1=0" }, esriSelectionType.esriSelectionTypeIDSet, esriSelectionOption.esriSelectionOptionNormal, null);
-
-                        //will union the current line selection and the parcel selection
-                        relatedSelectionSet = CFLineFeatureSelection.SelectionSet.Select(null, esriSelectionType.esriSelectionTypeIDSet, esriSelectionOption.esriSelectionOptionNormal, null);
-                        
-                        while ((row = (IRow)lineSet.Next()) != null)
-                        {
-                            relatedSelectionSet.Add(row.OID);
-                            Marshal.ReleaseComObject(row);
-                        }
-                        Marshal.ReleaseComObject(lineSet);
-                        polySet.Reset();
-                        while ((row = (IRow)polySet.Next()) != null)
-                            Marshal.ReleaseComObject(row);
-                        Marshal.ReleaseComObject(polySet);
-
-                        selectionSet = relatedSelectionSet;
-                    }
-                    else if (CFLineFeatureSelection.SelectionSet.Count > 0)
-                    {
-                        //lines selected
-                        selectionSet = CFLineFeatureSelection.SelectionSet;
-                    }
-                    
-                    else
-                    {
-                        if (DialogResult.OK != messageBox.Show("You are about to run the add-in on the entire feature class, this could take a long time.  Proceeed?", "Long Operation", MessageBoxButtons.OKCancel))
-                            return;
-                    }
-
-                    FindCurves(CFLineLayer.Name, CFLineLayer.FeatureClass, selectionSet, whereClause, parcelsToLock, idxRADIUS, idxCENTERPTID, idxParcelIDFld, progressor);
-                    
-
-                    if (Curves.Count == 0)
-                    {
-                        messageBox.Show("No inferred curved lines found.");
-                        return;
-                    }
-
-                    if (withUpdate && Curves.Count > 0 && parcelsToLock.Count > 0)
-                        UpdateCurves(pCadFabric, CFLineLayer.FeatureClass, Curves, parcelsToLock, progressor);
-
-                }
-                catch (Exception ex)
-                {
-                    messageBox.Show(ex.Message);
-                    if (m_pEd != null && m_pEd.HasEdits())
-                    {
-                        m_pEd.AbortOperation();
-                    }
-                }
-                finally
-                {
-                    if (relationshipClass != null)
-                        Marshal.ReleaseComObject(relationshipClass);
-                    if (relatedSelectionSet != null)
-                        Marshal.ReleaseComObject(relatedSelectionSet);
+                    m_pEd.AbortOperation();
                 }
             }
             finally
@@ -213,7 +229,7 @@ namespace ParcelFabricCurveByInference
             }
         }
 
-        public void FindCurves(String Name, IFeatureClass pFabricLinesFC, ISelectionSet selSet, string whereClause, HashSet<int> affectedParcels, int idxRADIUS, int idxCENTERPTID, int idxParcelIDFld, myProgessor progressor)
+        public void FindCurves(String Name, IFeatureClass pFabricLinesFC, ISelectionSet selSet, string whereClause, int idxRADIUS, int idxCENTERPTID, int idxParcelIDFld, myProgessor progressor)
         {
             IQueryFilter qFilter = new QueryFilter();
             if (String.IsNullOrEmpty(whereClause))
@@ -282,25 +298,47 @@ namespace ParcelFabricCurveByInference
                     //}
 
                     //query near lines
-                    List<RelatedCurve> sCurveInfoFromNeighbours = GetTangentCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "", idxRADIUS, idxCENTERPTID, pSeg.Length);
+                    List<RelatedLine> tangentLines;
+                    List<RelatedCurve> sCurveInfoFromNeighbours = GetTangentCurveMatchFeatures(pFabricLinesFC, pLineFeat, (IPolycurve)pGeom, "", idxRADIUS, idxCENTERPTID, pSeg.Length, out tangentLines);
                                 
                     if(sCurveInfoFromNeighbours.Count > 0)
                     //if (HasTangentCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "", pSeg.Length, out iFoundTangent, ref sCurveInfoFromNeighbours))
                     {
-                        //lstLineIds.Add(pLineFeat.OID);
                         InferredCurve curve = new InferredCurve(pLineFeat.OID, Name, sCurveInfoFromNeighbours);
                         Curves.Add(curve);
- 
-                        //if there's only one tangent look further afield
-                        if (curve.TangentCurves.Count == 1)
-                            curve.ParallelCurves = GetParallelCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "");
+                        curve.PropertyChanged += new PropertyChangedEventHandler(curve_PropertyChanged);
 
-                        //Determin if there is enough information to actually set the radius and centerpoint
-                        RefineToBestRadiusAndCenterPoint(curve);
+                        if (curve.TangentCurves[0].Orientation == RelativeOrientation.Same || curve.TangentCurves[0].Orientation == RelativeOrientation.Reverse)
+                        {
+                            curve.InferredRadius = curve.TangentCurves[0].Radius;
+                            curve.InferredCenterpointID = curve.TangentCurves[0].CenterpointID;
+                        }
+                        else
+                        {
+                            //if there's only one tangent look further afield
+                            if (curve.TangentCurves.Count == 1)
+                                curve.ParallelCurves = GetParallelCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "");
+                            
+                            //Determin if there is enough information to actually set the radius and centerpoint
+                            RefineToBestRadiusAndCenterPoint(curve);
+
+                            if (!curve.HasValue && tangentLines.Count > 0)
+                            {
+                                IPolyline polyLine = (IPolyline)pGeom;
+                                curve.FromPoint = polyLine.FromPoint;
+                                curve.ToPoint = polyLine.ToPoint;
+                                curve.TangentLines = tangentLines;
+
+                                RefineToBestRadiusAndCenterPoint(curve);
+                            }
+                        }
 
                         //if the curve has an accepted curve (ie, it's a candidate to be changed), record the parcel id
-                        if (curve.Accepted != null)
-                            affectedParcels.Add((int)pLineFeat.get_Value(idxParcelIDFld));
+                        //if (curve.Accepted != null)
+                        //    affectedParcels.Add();
+
+                        //cache the parcel so it can be looked up later
+                        curve.Parcel = (int)pLineFeat.get_Value(idxParcelIDFld);
                     }
                 }
                 Marshal.ReleaseComObject(pLineFeat);
@@ -308,12 +346,12 @@ namespace ParcelFabricCurveByInference
             Marshal.ReleaseComObject(cursor);
 
             Total = Curves.Count;
-            Inferred = Curves.Count(w => w.Accepted != null);
+            Inferred = Curves.Count(w => w.Action == UpdateAction.Update);
         }
-
-        void UpdateCurves(ICadastralFabric pCadFabric, IFeatureClass pFabricLinesFC, IEnumerable<InferredCurve> curvesToUpdate, HashSet<int> parcelsToLock, myProgessor progressor)
+        
+        void UpdateCurves(ICadastralFabric pCadFabric, IFeatureClass pFabricLinesFC, IEnumerable<InferredCurve> curvesToUpdate, myProgessor progressor)
         {
-            IEditor m_pEd = (IEditor)ArcMap.Application.FindExtensionByName("esri object editor");
+            IEnumerable<InferredCurve> updateCurves = (from InferredCurve c in curvesToUpdate where c.Action == UpdateAction.Update select c);
 
             bool bIsFileBasedGDB = false;
             bool bIsUnVersioned = false;
@@ -361,10 +399,13 @@ namespace ParcelFabricCurveByInference
 
             //only need to get locks for parcels that have lines that are to be changed
 
-
-            ILongArray pParcelsToLock = new LongArrayClass();
-            foreach (int i in parcelsToLock)
-                pParcelsToLock.Add(i);
+            ILongArray affectedParcels = new LongArrayClass();
+            IFIDSet parcelFIDs = new FIDSet();
+            foreach (int i in updateCurves.Select(w => w.Parcel).Distinct())
+            {
+                parcelFIDs.Add(i);
+                affectedParcels.Add(i);
+            }
 
             if (!bIsUnVersioned && !bIsFileBasedGDB)
             {
@@ -377,7 +418,7 @@ namespace ParcelFabricCurveByInference
 
                 try
                 {
-                    pFabLocks.AcquireLocks(pParcelsToLock, true, ref pLocksInConflict, ref pSoftLcksInConflict);
+                    pFabLocks.AcquireLocks(affectedParcels, true, ref pLocksInConflict, ref pSoftLcksInConflict);
                 }
                 catch (COMException pCOMEx)
                 {
@@ -424,39 +465,44 @@ namespace ParcelFabricCurveByInference
 
             // m_pEd.StartOperation();
 
-            //copy all the curves that have an accepted curve to a dictionay
-            var ToUpdate = (from c in Curves where c.Accepted != null select c).ToList();
-
             //Slice the list into sets that will fit into an in list
-            progressor.setStepProgressorProperties(ToUpdate.Count, "Updating geometries");
-            for (var i = 0; i < ToUpdate.Count; i += 995)
+            int curveCount = updateCurves.Count();
+            progressor.setStepProgressorProperties(curveCount, "Updating geometries");
+            for (var i = 0; i < curveCount; i += 995)
             {
-                Dictionary<int, InferredCurve> curvesSlice = ToUpdate.Skip(i).Take(995).ToDictionary(w => w.ObjectID);
+                Dictionary<int, InferredCurve> curvesSlice = updateCurves.Skip(i).Take(995).ToDictionary(w => w.ObjectID);
                 if (!progressor.Continue())
                     return;
                 m_pQF.WhereClause = String.Format("{0} IN ({1})", pFabricLinesFC.OIDFieldName, String.Join(",", (from oid in curvesSlice.Keys select oid.ToString()).ToArray()));
                 UpdateCircularArcValues((ITable)pFabricLinesFC, m_pQF, bIsUnVersioned, curvesSlice, progressor);
             }
 
-            //List<string> sInClauseList = InClauseFromOIDsList(Curves, 995);
-            //foreach (string InClause in sInClauseList)
-            //{
-            //    if (!cancelTracker.Continue())
-            //        return;
+            ICadastralFabricRegeneration pRegenFabric = new CadastralFabricRegenerator();
+            #region regenerator enum
+            // enum esriCadastralRegeneratorSetting
+            // esriCadastralRegenRegenerateGeometries         =   1
+            // esriCadastralRegenRegenerateMissingRadials     =   2,
+            // esriCadastralRegenRegenerateMissingPoints      =   4,
+            // esriCadastralRegenRemoveOrphanPoints           =   8,
+            // esriCadastralRegenRemoveInvalidLinePoints      =   16,
+            // esriCadastralRegenSnapLinePoints               =   32,
+            // esriCadastralRegenRepairLineSequencing         =   64,
+            // esriCadastralRegenRepairPartConnectors         =   128
 
-            //    m_pQF.WhereClause = pFabricLinesFC.OIDFieldName + " IN (" + InClause + ")";
-            //    if (!UpdateCircularArcValues((ITable)pFabricLinesFC, m_pQF, bIsUnVersioned, Curves, stepProgress, cancelTracker))
-            //        ;
-            //}
+            // By default, the bitmask member is 0 which will only regenerate geometries.
+            // (equivalent to passing in regeneratorBitmask = 1)
+            #endregion
+
+            pRegenFabric.CadastralFabric = pCadFabric;
+            pRegenFabric.RegeneratorBitmask = 7;
+            pRegenFabric.RegenerateParcels(parcelFIDs, false, progressor.cancelTracker);
+            
             m_pEd.StopOperation("Insert missing circular arc information.");
-
-                
-
         }
 
         #region Access
 
-        private List<ICadastralFabricLayer> GetFabricLayers(IMap Map)
+        private ICadastralFabricLayer GetFabricLayer(IMap Map)
         {
             List<ICadastralFabricLayer> ret = new List<ICadastralFabricLayer>();
 
@@ -468,9 +514,38 @@ namespace ParcelFabricCurveByInference
                 if (pCFLayer != null)
                     ret.Add(pCFLayer);
             }
-            return ret;
+
+            if (ret.Count == 0)
+            {
+                messageBox.Show("No cadastral fabric layers found in the current map.");
+                return null;
+            }
+            if (ret.Count > 1)
+            {
+                messageBox.Show("Multiple cadastral fabric layers found in the current map.");
+                return null;
+            }
+            return ret[0];
         }
-        
+
+        bool hasOpenJob()
+        {
+            //get Cadastral Editor
+            UID pUID = new UIDClass();
+            pUID.Value = "{114D685F-99B7-4B63-B09F-6D1A41A4DDC1}";
+            ICadastralExtensionManager2 pCadExtMan = (ICadastralExtensionManager2)ArcMap.Application.FindExtensionByCLSID(pUID);
+            ICadastralEditor pCadEd = (ICadastralEditor)ArcMap.Application.FindExtensionByCLSID(pUID);
+
+            //check if there is a Manual Mode "modify" job active ===========
+            ICadastralPacketManager pCadPacMan = (ICadastralPacketManager)pCadExtMan;
+            if (pCadPacMan.PacketOpen)
+            {
+                messageBox.Show("The command cannot be used when there is an open job.\r\nPlease finish or discard the open job, and try again.");
+                return true;
+            }
+            return false;
+        }
+
         #endregion
 
         #region feature updating
@@ -656,7 +731,7 @@ namespace ParcelFabricCurveByInference
 
                     //string[] sCurveInfo = CurveInfoList[0].Split(','); //should only be one element in the list at this point
                     //RelatedCurve curveInfo = CurveInfoList.FirstOrDefault(w=>w.Accepted);
-                    RelatedCurve curveInfo = CurveLookup[pLineFeat.OID].Accepted;
+                    InferredCurve curveInfo = CurveLookup[pLineFeat.OID];
                     //if (sCurveInfo.Length > 2)
                     //if (!curveInfo.)
                     //{
@@ -665,8 +740,9 @@ namespace ParcelFabricCurveByInference
                     //}
                     //double dRadius = Convert.ToDouble(sCurveInfo[0]);
                     //int iCtrPointID = Convert.ToInt32(sCurveInfo[1]);
-                    pLineFeat.set_Value(iRadiusIDX, curveInfo.Radius);
-                    pLineFeat.set_Value(iCtrPointIDX, curveInfo.CenterpointID);
+
+                    pLineFeat.set_Value(iRadiusIDX, curveInfo.InferredRadius);
+                    pLineFeat.set_Value(iCtrPointIDX, curveInfo.InferredCenterpointID);
 
                     if (Unversioned)
                         pLineCurs.UpdateRow(pLineFeat);
@@ -690,38 +766,115 @@ namespace ParcelFabricCurveByInference
         #region Inference
 
         RelatedCurveComparer relatedCurveComparer = new RelatedCurveComparer();
+        bool evaluateParallelCurves(InferredCurve inferredCurve, RelatedCurve curve)
+        {
+            bool bHasConfirmer = false;
+            foreach (RelatedCurve dd in inferredCurve.ParallelCurves)
+            {
+                if (Math.Abs(dd.Radius - curve.Radius) < 0.5)
+                {
+                    bHasConfirmer = true;
+                    break;
+                }
+            }
+            if (bHasConfirmer)
+            {
+                inferredCurve.InferredRadius = inferredCurve.TangentCurves[0].Radius;
+                inferredCurve.InferredCenterpointID = inferredCurve.TangentCurves[0].CenterpointID;
+                return true;
+            }
+            return false;
+        }
+        bool evaluateTangent(InferredCurve inferredCurve, RelatedCurve curve)
+        {
+            //double angle = Math.Atan((inferredCurve.FromPoint.Y - inferredCurve.ToPoint.Y) / (inferredCurve.FromPoint.X - inferredCurve.ToPoint.X));
+            //double length = ((IProximityOperator)inferredCurve.FromPoint).ReturnDistance(inferredCurve.ToPoint);
+            
+            //the proposed arc chord:
+            ILine line = new Line() { FromPoint = inferredCurve.FromPoint, ToPoint = inferredCurve.ToPoint };
+
+            //half the delta of the proposed curve would be:
+            double halfdelta = toDegrees(Math.Asin(line.Length / 2 / curve.Radius));
+
+            IVector3D chordVector = new Vector3D() as IVector3D;
+            chordVector.PolarSet(line.Angle, 0, 1);
+
+            foreach (RelatedLine tangent in inferredCurve.TangentLines)
+            {
+                IVector3D tangentVector = new Vector3D() as IVector3D;
+                tangentVector.PolarSet(ToRadians(tangent.Angle), 0, 1);
+
+                bool dMatch = false;
+                double dVectDiff = toDegrees(Math.Acos(chordVector.DotProduct(tangentVector)));
+                if (tangent.Orientation == RelativeOrientation.From_To)
+                    dMatch = Math.Abs(dVectDiff - halfdelta) < CurveByInferenceSettings.Instance.MaxTangentLineAngleInDegrees;
+                else if (tangent.Orientation == RelativeOrientation.To_From)
+                    dMatch = Math.Abs(dVectDiff + halfdelta) < CurveByInferenceSettings.Instance.MaxTangentLineAngleInDegrees;
+                else if (tangent.Orientation == RelativeOrientation.From_From)
+                    dMatch = Math.Abs(dVectDiff + halfdelta) < CurveByInferenceSettings.Instance.MaxTangentLineAngleInDegrees;
+                else if (tangent.Orientation == RelativeOrientation.To_To)
+                    dMatch = Math.Abs(dVectDiff - halfdelta) < CurveByInferenceSettings.Instance.MaxTangentLineAngleInDegrees;
+                if (dMatch)
+                {
+                    inferredCurve.InferredRadius = inferredCurve.TangentCurves[0].Radius;
+                    inferredCurve.InferredCenterpointID = inferredCurve.TangentCurves[0].CenterpointID;
+                    return true;
+                }
+            }
+            return false;
+        }
         void RefineToBestRadiusAndCenterPoint(InferredCurve inferredCurve)
         {
-            if (inferredCurve.TangentCurves.Count == 1 && inferredCurve.ParallelCurves.Count > 0)
-            {//only one radius found, so search the parallel offsets for one conformer
-                bool bHasConfirmer = false;
-                foreach (RelatedCurve dd in inferredCurve.ParallelCurves)
+            //only one radius found
+            if (inferredCurve.TangentCurves.Count == 1)
+            {
+                //search the parallel offsets for one conformer, if found return
+                if (inferredCurve.ParallelCurves.Count > 0 && evaluateParallelCurves(inferredCurve, inferredCurve.TangentCurves[0]))
                 {
-                    if (Math.Abs(dd.Radius - inferredCurve.TangentCurves[0].Radius) < 0.5)
-                    {
-                        bHasConfirmer = true;
-                        break;
-                    }
+                    return;
                 }
-                if (bHasConfirmer)
+                //search the tagent lines for one conformer, if found return
+                if (inferredCurve.TangentLines.Count > 0 && evaluateTangent(inferredCurve, inferredCurve.TangentCurves[0]))
                 {
-                    inferredCurve.Accepted = inferredCurve.TangentCurves[0];
+                    return;
                 }
-                return;
             }
-
+            
             var groupsTangent = inferredCurve.TangentCurves.GroupBy(item => Math.Round(item.Radius, 2)).Where(group => group.Skip(1).Any());
             var groupsTangentAndCP = inferredCurve.TangentCurves.GroupBy(item => item, relatedCurveComparer).Where(group => group.Skip(1).Any());
             
-            System.Diagnostics.Debug.Print(groupsTangent.Count().ToString());
-            System.Diagnostics.Debug.Print(groupsTangentAndCP.Count().ToString());
+            //System.Diagnostics.Debug.Print(groupsTangent.Count().ToString());
+            //System.Diagnostics.Debug.Print(groupsTangentAndCP.Count().ToString());
 
+            bool HasStartTangents = inferredCurve.TangentCurves.Any(w => w.Orientation == RelativeOrientation.To_From || w.Orientation == RelativeOrientation.To_To);
+            bool HasEndTangents = inferredCurve.TangentCurves.Any(w => w.Orientation == RelativeOrientation.From_To || w.Orientation == RelativeOrientation.From_From);
+
+            //if there is only 1 of each group, then there are no ambiguities for the tangent or the center point
             if (groupsTangent.Count() == 1 && groupsTangentAndCP.Count() == 1)
-            { //if there is only 1 of each group, then there are no ambiguities for the tangent or the center point
- 
+            {
                 IGrouping<RelatedCurve, RelatedCurve> d1 = groupsTangentAndCP.ElementAt(0);
-                inferredCurve.Accepted = d1.Key;
-                return;
+                
+                //if there are curves on either side of the query feature
+                if (HasStartTangents && HasEndTangents)
+                {
+
+                    inferredCurve.InferredRadius = d1.Key.Radius;
+                    inferredCurve.InferredCenterpointID = d1.Key.CenterpointID;
+                    return;
+                }
+                if (inferredCurve.TangentCurves.Count > 0)
+                {
+                    //search the parallel offsets for one conformer, if found return
+                    if (inferredCurve.ParallelCurves.Count > 0 && evaluateParallelCurves(inferredCurve, d1.Key))
+                    {
+                        return;
+                    }
+                    //search the tagent lines for one conformer, if found return
+                    if (inferredCurve.TangentLines.Count > 0 && evaluateTangent(inferredCurve, d1.Key))
+                    {
+                        return;
+                    }
+                }
             }
             else if (groupsTangent.Count() == 1 && groupsTangentAndCP.Count() > 1)
             {//if there is only 1 tangent, but more than one center point then there are center points to merge
@@ -929,7 +1082,7 @@ namespace ParcelFabricCurveByInference
                         dDerivedRadius = dDerivedRadius * dUnitSignChange;
 
                         //string sHarvestedCurveInfo = pFeat.OID.ToString() + "," + dDerivedRadius.ToString("#.000") + "," + centerpointID.ToString() + "," + dRadiusDiff.ToString("#.000");
-                        CurveInfoFromNeighbours.Add(new RelatedCurve(pFeat.OID, dDerivedRadius, centerpointID.Value, RelationTypes.Parallel));
+                        CurveInfoFromNeighbours.Add(new RelatedCurve(pFeat.OID, dDerivedRadius, centerpointID.Value, RelativeOrientation.Parallel));
                     }
                 }
 
@@ -941,14 +1094,15 @@ namespace ParcelFabricCurveByInference
             return CurveInfoFromNeighbours;
         }
 
-        public List<RelatedCurve> GetTangentCurveMatchFeatures(IFeatureClass FeatureClass, IPolycurve inPolycurve, string WhereClause,
+        public List<RelatedCurve> GetTangentCurveMatchFeatures(IFeatureClass FeatureClass, IFeature inFeature, IPolycurve inPolycurve, string WhereClause,
                                                 int idxRadius, int idxCenterPointID,
-                                                double SegementLength)
+                                                double SegementLength, out List<RelatedLine> tangentLines)
             //double AngleToleranceTangentCompareInDegrees, double StraightLinesBreakLessThanInDegrees, 
             //double MaximumDeltaInDegrees, double ExcludeTangentsShorterThan,
             //                                     out int outFoundTangentCurvesCount, ref List<RelatedCurve> CurveInfoFromNeighbours)
         {
             List<RelatedCurve> CurveInfoFromNeighbours = new List<RelatedCurve>();
+            tangentLines = new List<RelatedLine>();
 
             ILine pOriginalChord = (ILine)new Line();
             pOriginalChord.PutCoords(inPolycurve.FromPoint, inPolycurve.ToPoint);
@@ -1038,6 +1192,12 @@ namespace ParcelFabricCurveByInference
 
             while ((foundFeature = pFeatCursLines.NextFeature()) != null)
             {
+                if (inFeature.OID == foundFeature.OID)
+                {
+                    Marshal.ReleaseComObject(foundFeature);
+                    continue;
+                }
+
                 IGeometry foundLineGeom = foundFeature.ShapeCopy;
                 IPolycurve foundPolyCurve = foundLineGeom as IPolycurve;
                 RelativeOrientation iRelativeOrientation = GetRelativeOrientation(foundPolyCurve, inPolycurve);
@@ -1046,9 +1206,26 @@ namespace ParcelFabricCurveByInference
                 //iRelativeOrientation == 3 --> closest points are original FROM and found TO
                 //iRelativeOrientation == 4 --> closest points are original FROM and found FROM
 
-                //if the feature has no radius attribute, skip.
                 double foundRadius = (foundFeature.get_Value(idxRadius) is DBNull) ? 0 : (double)foundFeature.get_Value(idxRadius);
                 int? foundCentriodID = (foundFeature.get_Value(idxCenterPointID) is DBNull) ? null : (int?)foundFeature.get_Value(idxCenterPointID);
+
+                //if the found feature has the same start and endpoints, assume that the feature is the same.  If that feature has radius and centerpoint information
+                //assume that feature is unchanged and update the current feature with the found feature.
+                if (iRelativeOrientation == RelativeOrientation.Same || iRelativeOrientation == RelativeOrientation.Reverse)
+                {
+                    if (foundRadius > 0 && foundCentriodID.HasValue)
+                    {
+                        double adjustedRadius = iRelativeOrientation == RelativeOrientation.Same ? foundRadius : -1 * foundRadius;
+
+                        CurveInfoFromNeighbours.Clear();
+                        CurveInfoFromNeighbours.Add(new RelatedCurve(foundFeature.OID, adjustedRadius, foundCentriodID.Value, iRelativeOrientation));
+                        Marshal.ReleaseComObject(foundFeature);
+                        Marshal.FinalReleaseComObject(pFeatCursLines);
+                        return CurveInfoFromNeighbours;
+                    }
+                    Marshal.ReleaseComObject(foundFeature);
+                    continue;
+                }
 
                 /******************************
                  * 
@@ -1124,11 +1301,43 @@ namespace ParcelFabricCurveByInference
                 {
                     if (lstLargeBreak.Contains(iRelativeOrientation))
                         bHasTangentStraightLineAtJunction = true;
-                     
                 }
 
                 if (!foundCentriodID.HasValue || foundRadius == 0 || foundPolyCurve.Length < ExcludeTangentsShorterThan)
                 {
+                    //staight line
+                    if (foundPolyCurve.Length > ExcludeTangentsShorterThan)
+                    {
+                        IPolyline foundPolyLine = (IPolyline4)foundFeature.ShapeCopy;
+                        //ISegmentCollection collection = (ISegmentCollection)polyline;
+                        //ISegment segement = collection.get_Segment(collection.SegmentCount - 1);
+                        ILine line = new Line();
+
+                        double Angle = 0.0;
+                        switch (iRelativeOrientation)
+                        {
+                            case RelativeOrientation.To_From:
+                                foundPolyLine.QueryTangent(esriSegmentExtension.esriExtendAtFrom, 0.0, true, 1.0, line);
+                                Angle = line.Angle;
+                                break;
+                            case RelativeOrientation.From_From:
+                                foundPolyLine.QueryTangent(esriSegmentExtension.esriExtendAtFrom, 0.0, true, 1.0, line);
+                                Angle = (line.Angle > 0) ? line.Angle - Math.PI : line.Angle + Math.PI;
+                                break;
+                            case RelativeOrientation.To_To:
+                                foundPolyLine.QueryTangent(esriSegmentExtension.esriExtendAtTo, 1.0, true, 1.0, line);
+                                Angle = (line.Angle > 0) ? line.Angle - Math.PI : line.Angle + Math.PI;
+                                break;
+                            case RelativeOrientation.From_To:
+                                foundPolyLine.QueryTangent(esriSegmentExtension.esriExtendAtTo, 1.0, true, 1.0, line);
+                                Angle = line.Angle;
+                                break;
+                        }
+
+
+                        //Console.WriteLine("Add Straight Line: {0}, {1} -> {2}", foundFeature.OID, line.Angle, ((ILine)segement).Angle);
+                        tangentLines.Add(new RelatedLine(foundFeature.OID, toDegrees(Angle), iRelativeOrientation));
+                    }
                     //if the feature has a null centrpointID then skip.
                     Marshal.ReleaseComObject(foundFeature);
                     continue;
@@ -1196,7 +1405,7 @@ namespace ParcelFabricCurveByInference
                     double inferredRadius = foundRadius * dUnitSignChange;
 
                     //string sHarvestedCurveInfo = foundFeature.OID.ToString() + "," + inferredRadius.ToString("#.000") + "," + foundCentriodID.ToString() + "," + "t";
-                    CurveInfoFromNeighbours.Add(new RelatedCurve(foundFeature.OID, inferredRadius, foundCentriodID.Value, RelationTypes.Tangent) { Orientation = iRelativeOrientation });
+                    CurveInfoFromNeighbours.Add(new RelatedCurve(foundFeature.OID, inferredRadius, foundCentriodID.Value, iRelativeOrientation));
                 }
                 Marshal.ReleaseComObject(foundFeature);
             }
@@ -1211,41 +1420,71 @@ namespace ParcelFabricCurveByInference
             return CurveInfoFromNeighbours;
         }
 
-        public enum RelativeOrientation { To_To = 1, To_From = 2, From_To = 3, From_From = 4 }
+        public enum RelativeOrientation { To_To = 1, To_From = 2, From_To = 3, From_From = 4, Same = 5, Reverse = 6, Parallel = 7}
         private RelativeOrientation GetRelativeOrientation(IPolycurve pFoundLineAsPolyCurve, IPolycurve inPolycurve)
+        {
+            //check to see if the segments overlap
+            double line_to = ((IProximityOperator)pFoundLineAsPolyCurve).ReturnDistance(inPolycurve.ToPoint);
+            double line_from = ((IProximityOperator)pFoundLineAsPolyCurve).ReturnDistance(inPolycurve.FromPoint);
+
+            if (line_to < 0.005 && line_from < 0.005)
+            {
+                //if they do, find the relative orientation and then return Same or Reverse
+                RelativeOrientation orientation = GetRelativeOrientation_ignoreSame(pFoundLineAsPolyCurve, inPolycurve);
+                if (orientation == RelativeOrientation.To_To || orientation == RelativeOrientation.From_From)
+                    return RelativeOrientation.Same;
+                if (orientation == RelativeOrientation.From_To || orientation == RelativeOrientation.To_From)
+                    return RelativeOrientation.Reverse;
+
+                throw new Exception("Invalid relative orientation for overlapping segments returend");
+            }
+            //if they don't, just get the relative orientation
+            return GetRelativeOrientation_ignoreSame(pFoundLineAsPolyCurve, inPolycurve);
+        }
+        private RelativeOrientation GetRelativeOrientation_ignoreSame(IPolycurve pFoundLineAsPolyCurve, IPolycurve inPolycurve)
         {
             //iRelativeOrientation == 1 --> closest points are original TO and found TO
             //iRelativeOrientation == 2 --> closest points are original TO and found FROM
             //iRelativeOrientation == 3 --> closest points are original FROM and found TO
             //iRelativeOrientation == 4 --> closest points are original FROM and found FROM
 
-            int ret = 1;
-            double dist = ((IProximityOperator)pFoundLineAsPolyCurve.ToPoint).ReturnDistance(inPolycurve.ToPoint);
-            if (dist < 0.005) 
-                return (RelativeOrientation)ret;
-            
+            RelativeOrientation ret = RelativeOrientation.To_To;
+            double min = 0;
 
-            double dist2 = ((IProximityOperator)pFoundLineAsPolyCurve.FromPoint).ReturnDistance(inPolycurve.ToPoint);
-            if(dist2 < 0.005)
-                return (RelativeOrientation)2;
-            if (dist2 < dist)
+            double To_To = min = ((IProximityOperator)pFoundLineAsPolyCurve.ToPoint).ReturnDistance(inPolycurve.ToPoint);
+            if (To_To < 0.005)
+                return RelativeOrientation.To_To;
+
+
+            double From_From = ((IProximityOperator)pFoundLineAsPolyCurve.FromPoint).ReturnDistance(inPolycurve.FromPoint);
+            if (From_From < 0.005)
             {
-                dist = dist2;
-                ret = 2;
+                return RelativeOrientation.From_From;
+            }
+            else if (From_From < To_To)
+            {
+                min = From_From;
+                ret = RelativeOrientation.From_From;
             }
 
-            double dist3 = ((IProximityOperator)pFoundLineAsPolyCurve.ToPoint).ReturnDistance(inPolycurve.FromPoint);
-            if(dist3 < 0.005)
-                return (RelativeOrientation)3;
-            if (dist3 < dist)
+
+            double From_To = ((IProximityOperator)pFoundLineAsPolyCurve.ToPoint).ReturnDistance(inPolycurve.FromPoint);
+            if (From_To < 0.005)
             {
-                dist = dist3;
-                ret = 3;
+                return RelativeOrientation.From_To;
+            }
+            if (From_To < min)
+            {
+                ret = RelativeOrientation.From_To;
+                min = From_To;
             }
 
-            double dist4 = ((IProximityOperator)pFoundLineAsPolyCurve.FromPoint).ReturnDistance(inPolycurve.FromPoint);
-            if (dist4 < dist)
-                ret = 4;
+
+            double To_From = ((IProximityOperator)pFoundLineAsPolyCurve.FromPoint).ReturnDistance(inPolycurve.ToPoint);
+            if (To_From < min)
+            {
+                ret = RelativeOrientation.To_From;
+            }
 
             return (RelativeOrientation)ret;
         }
@@ -1310,6 +1549,25 @@ namespace ParcelFabricCurveByInference
 
         }
 
+        void curve_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            switch (e.PropertyName)
+            {
+                case "Action":
+                    Inferred = Curves.Count(w => w.Action == UpdateAction.Update);
+                    break;
+            }
+        }
+
         #endregion
+
+        private double ToRadians(double degrees)
+        {
+            return degrees / ( 180 / Math.PI );
+        }
+        private double toDegrees(double radians)
+        {
+            return radians * (180 / Math.PI);
+        }
     }
 }

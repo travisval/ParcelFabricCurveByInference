@@ -11,6 +11,8 @@ namespace ParcelFabricCurveByInference
 {
     public class myProgessor
     {
+        public CancelTracker cancelTracker = null;
+
         public virtual bool Continue()
         {
             return true;
@@ -24,18 +26,18 @@ namespace ParcelFabricCurveByInference
         public virtual void Step()
         {
         }
-
     }
 
     public class myAOProgressor : myProgessor, IDisposable
     {
-        CancelTracker cancelTracker = new CancelTracker();
         ProgressDialogFactory progressDialogFactory = new ProgressDialogFactory();
         IStepProgressor stepProgress;
         IMouseCursor pMouseCursor;
 
         public myAOProgressor()
         {
+            cancelTracker = new CancelTracker();
+
             pMouseCursor = new MouseCursorClass();
             pMouseCursor.SetCursor(2);
         }

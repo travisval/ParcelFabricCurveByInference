@@ -3,30 +3,56 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.ComponentModel;
+using ESRI.ArcGIS.Geometry;
 
 namespace ParcelFabricCurveByInference
 {
+    public enum UpdateAction { Ignore, Update }
+
     public class InferredCurve : INotifyPropertyChanged
     {
         public int ObjectID { get; set; }
         public string Description { get; set; }
         public string LayerName { get; private set; }
 
-        public RelatedCurve _Accepted;
-        public RelatedCurve Accepted { get { return _Accepted; } set { _Accepted = value; RaisePropertyChanged("Accepted", "SetVisibility", "ItemColor"); } }
+        public IPoint FromPoint { get; set; }
+        public IPoint ToPoint { get; set; }
 
-        public System.Windows.Media.Brush ItemColor { get { return (Accepted == null) ? System.Windows.Media.Brushes.Black : System.Windows.Media.Brushes.Blue; } }
+        public int Parcel { get; set; }
+
+        //public RelatedCurve _Accepted;
+        //public RelatedCurve Accepted { get { return _Accepted; } set { _Accepted = value; Action = (value == null) ? UpdateAction.Ignore : UpdateAction.Update; RaisePropertyChanged("Accepted", "SetVisibility", "CanActionChange"); } }
+
+        public bool HasValue { get { return InferredCenterpointID.HasValue && InferredRadius.HasValue; } }
+
+        public double? _InferredRadius;
+        public double? InferredRadius { get { return _InferredRadius; } set { _InferredRadius = value; Action = !HasValue ? UpdateAction.Ignore : UpdateAction.Update; RaisePropertyChanged("InferredRadius", "SetVisibility", "CanActionChange", "HasValue"); } }
+
+        public int? _InferredCenterpointID;
+        public int? InferredCenterpointID { get { return _InferredCenterpointID; } set { _InferredCenterpointID = value; Action = !HasValue ? UpdateAction.Ignore : UpdateAction.Update; RaisePropertyChanged("InferredCenterpointID", "SetVisibility", "CanActionChange", "HasValue"); } }
+        
+        public UpdateAction _Action;
+        public UpdateAction Action { get { return _Action; } set { _Action = value; RaisePropertyChanged("Action"); } }
+
+        public bool CanActionChange { get { return HasValue; } }
+        public System.Windows.Visibility SetVisibility { get { return (!HasValue) ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible; } }
 
         public List<RelatedCurve> _TangentCurves;
-        public List<RelatedCurve> TangentCurves { get { return _TangentCurves; } set { _TangentCurves = value; RaisePropertyChanged("TangentCurves", "TangentVisibility"); } }
+        public List<RelatedCurve> TangentCurves { get { return _TangentCurves; } set { _TangentCurves = value; RaisePropertyChanged("TangentCurves", "TangentVisibility", "TangentCurveCount"); } }
         public System.Windows.Visibility TangentVisibility { get { return (TangentCurves == null || TangentCurves.Count == 0) ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible; } }
+        public int TangentCurveCount { get { return (TangentCurves == null) ? 0 : TangentCurves.Count; } } 
 
         public List<RelatedCurve> _ParallelCurves;
-        public List<RelatedCurve> ParallelCurves { get { return _ParallelCurves; } set { _ParallelCurves = value; RaisePropertyChanged("ParallelCurves", "ParallelVisibility"); } }
+        public List<RelatedCurve> ParallelCurves { get { return _ParallelCurves; } set { _ParallelCurves = value; RaisePropertyChanged("ParallelCurves", "ParallelVisibility", "ParallelCurveCount"); } }
         public System.Windows.Visibility ParallelVisibility { get { return (ParallelCurves == null || ParallelCurves.Count == 0) ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible; } }
+        public int ParallelCurveCount { get { return (ParallelCurves == null) ? 0 : ParallelCurves.Count; } } 
+
+        public List<RelatedLine> _TangentLines;
+        public List<RelatedLine> TangentLines { get { return _TangentLines; } set { _TangentLines = value; RaisePropertyChanged("TangentLines", "TangentLineVisibility", "TangentLineCount"); } }
+        public System.Windows.Visibility TangentLineVisibility { get { return (TangentLines == null || TangentLines.Count == 0) ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible; } }
+        public int TangentLineCount { get { return (TangentLines == null) ? 0 : TangentLines.Count; } } 
 
         public string Header { get; set; }
-        public System.Windows.Visibility SetVisibility { get { return (Accepted == null) ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible; } }
 
         public InferredCurve(int id, string LayerName, List<RelatedCurve> tangentCurves)
         {
@@ -36,6 +62,7 @@ namespace ParcelFabricCurveByInference
 
             TangentCurves = tangentCurves;
             ParallelCurves = new List<RelatedCurve>();
+            TangentLines = new List<RelatedLine>();
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -59,6 +86,10 @@ namespace ParcelFabricCurveByInference
 
         static RelatedCurveComparer relativeComparer = new RelatedCurveComparer(false);
         static RelatedCurveComparer relativeComparerWithOID = new RelatedCurveComparer(true);
+
+        static RelatedLineComparer relativeLineComparer = new RelatedLineComparer(false);
+        static RelatedLineComparer relativeLineComparerWithOID = new RelatedLineComparer(true);
+
         public override bool Equals(object obj)
         {
             InferredCurve other = obj as InferredCurve;
@@ -69,13 +100,13 @@ namespace ParcelFabricCurveByInference
                 return false;
 
 
-            if (this.Accepted != null)
+            if (this.HasValue && other.HasValue)
             {
                 //if (!this.Accepted.Equals(other.Accepted))
-                if (!relativeComparer.Equals(this.Accepted, other.Accepted))
+                if (Math.Abs(this.InferredRadius.Value - other.InferredRadius.Value) > 0.005 && this.InferredCenterpointID == other.InferredCenterpointID)
                     return false;
             }
-            else if (other.Accepted != null)
+            else if (this.HasValue || other.HasValue)
             {
                 return false;
             }
@@ -86,14 +117,17 @@ namespace ParcelFabricCurveByInference
             if (!this.ParallelCurves.OrderBy(i => i.ObjectID).SequenceEqual(other.ParallelCurves.OrderBy(i => i.ObjectID), relativeComparerWithOID))
                 return false;
 
+            if (!this.TangentLines.OrderBy(i => i.ObjectID).SequenceEqual(other.TangentLines.OrderBy(i => i.ObjectID), relativeLineComparerWithOID))
+                return false;
+
             return true;
         }
 
         public override int GetHashCode()
         {
             int hash = ObjectID;
-            if (Accepted != null)
-                hash += Accepted.GetHashCode();
+            if (HasValue)
+                hash += (int)InferredCenterpointID.Value * (int)InferredRadius.Value;
             if (TangentCurves != null)
                 hash += TangentCurves.Sum(w => w.GetHashCode());
             if (ParallelCurves != null)

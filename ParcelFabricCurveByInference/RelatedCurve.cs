@@ -5,28 +5,26 @@ using System.Text;
 
 namespace ParcelFabricCurveByInference
 {
-    public enum RelationTypes { Tangent, Parallel }
-    public class RelatedCurve
+    public class RelatedCurve : LineBase
     {
-        public int ObjectID { get; set; }
-
         public double Radius { get; set; }
         public int CenterpointID { get; set; }
 
-        public CurveByInference.RelativeOrientation Orientation { get; set; }
+        //controls the visibilty of update related UI components
+        static CurveByInference.RelativeOrientation[] UpdateableOrientations = new CurveByInference.RelativeOrientation[] {
+            CurveByInference.RelativeOrientation.To_To,
+            CurveByInference.RelativeOrientation.To_From,
+            CurveByInference.RelativeOrientation.From_To,
+            CurveByInference.RelativeOrientation.From_From
+        };
 
-        public RelationTypes RelationType { get; set; }
-
-        public string Header { get; set; }
-
-        public RelatedCurve(int id, double radius, int centerpointID, RelationTypes relationType)
+        public RelatedCurve(int id, double radius, int centerpointID, CurveByInference.RelativeOrientation orientation)
+            : base (id, orientation)
         {
-            this.ObjectID = id;
             this.Radius = radius;
             this.CenterpointID = centerpointID;
-            this.RelationType = relationType;
-
-            this.Header = String.Format("{0}: CPID:{1} rad:{2}", id, centerpointID, radius);
+            if (UpdateableOrientations.Contains(Orientation))
+                UpdateVisibility = System.Windows.Visibility.Visible;
         }
     }
     public class RelatedCurveComparer : IEqualityComparer<RelatedCurve>
