@@ -401,14 +401,15 @@ namespace ParcelFabricCurveByInference
 
             //int perpendicularCount = perpendiculars.Select(w => w.DeltaAngle).Distinct().Count();
             int tangentCount = tangents.Select(w => w.DeltaAngle).Distinct().Count();
-            int curveCount = curves.Select(w => new { w.Radius, w.CenterpointID }).Distinct().Count();
+            var test = curves.Select(w => new { w.Radius, w.CenterpointID }).ToArray();
+            var groupsTangentAndCP = curves.GroupBy(item => item, relatedCurveComparer).Where(group => group.Skip(1).Any());
 
-            if (tangentCount == 1 && curveCount == 0)
+            if (tangentCount == 1 && groupsTangentAndCP.Count() == 0)
             {
                 // only a straight line on the other side of the perpendicular
                 return false;
             }
-            else if (tangentCount == 0 && curveCount == 1)
+            else if (tangentCount == 0 && groupsTangentAndCP.Count() == 1)
             {
                 // only a curved line on the other side of the perpendicular, so set the curve
                 curve.InferredCenterpointID = curves[0].CenterpointID;
