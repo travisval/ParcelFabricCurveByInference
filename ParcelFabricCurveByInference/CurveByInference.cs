@@ -305,40 +305,54 @@ namespace ParcelFabricCurveByInference
                     //if (HasTangentCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "", pSeg.Length, out iFoundTangent, ref sCurveInfoFromNeighbours))
                     {
                         InferredCurve curve = new InferredCurve(pLineFeat.OID, Name, sCurveInfoFromNeighbours);
-                        Curves.Add(curve);
-                        curve.PropertyChanged += new PropertyChangedEventHandler(curve_PropertyChanged);
-
-                        if (curve.TangentCurves[0].Orientation == RelativeOrientation.Same || curve.TangentCurves[0].Orientation == RelativeOrientation.Reverse)
+                        IPolyline polyLine = (IPolyline)pGeom;
+                        curve.FromPoint = polyLine.FromPoint;
+                        curve.ToPoint = polyLine.ToPoint;
+                     
+                        //evaluated the position of any tangent lines, and determines if there is a junction situation.  If there is, it will:
+                        //  Retrun true with curve.Accepted set
+                        //  Return true without curve.Accepted set
+                        //  Return false (this indicates that the junction has been used to verify that this segemnt should not have a curve)
+                        if (evaluateJunctions(curve, tangentLines))
                         {
-                            curve.InferredRadius = curve.TangentCurves[0].Radius;
-                            curve.InferredCenterpointID = curve.TangentCurves[0].CenterpointID;
-                        }
-                        else
-                        {
-                            //if there's only one tangent look further afield
-                            if (curve.TangentCurves.Count == 1)
-                                curve.ParallelCurves = GetParallelCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "");
-                            
-                            //Determin if there is enough information to actually set the radius and centerpoint
-                            RefineToBestRadiusAndCenterPoint(curve);
 
-                            if (!curve.HasValue && tangentLines.Count > 0)
+                            Curves.Add(curve);
+                            curve.PropertyChanged += new PropertyChangedEventHandler(curve_PropertyChanged);
+
+                            if (!curve.HasValue)
                             {
-                                IPolyline polyLine = (IPolyline)pGeom;
-                                curve.FromPoint = polyLine.FromPoint;
-                                curve.ToPoint = polyLine.ToPoint;
-                                curve.TangentLines = tangentLines;
+                                if (curve.TangentCurves[0].Orientation == RelativeOrientation.Same || curve.TangentCurves[0].Orientation == RelativeOrientation.Reverse)
+                                {
+                                    curve.InferredRadius = curve.TangentCurves[0].Radius;
+                                    curve.InferredCenterpointID = curve.TangentCurves[0].CenterpointID;
+                                }
+                                else
+                                {
+                                    //if there's only one tangent look further afield
+                                    if (curve.TangentCurves.Count == 1)
+                                        curve.ParallelCurves = GetParallelCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "");
 
-                                RefineToBestRadiusAndCenterPoint(curve);
+                                    //Determin if there is enough information to actually set the radius and centerpoint
+                                    RefineToBestRadiusAndCenterPoint(curve);
+
+                                    //try again with the tangent lines set
+                                    if (!curve.HasValue && tangentLines.Count > 0)
+                                    {
+
+                                        curve.TangentLines = tangentLines;
+
+                                        RefineToBestRadiusAndCenterPoint(curve);
+                                    }
+                                }
                             }
+
+                            //if the curve has an accepted curve (ie, it's a candidate to be changed), record the parcel id
+                            //if (curve.Accepted != null)
+                            //    affectedParcels.Add();
+
+                            //cache the parcel so it can be looked up later
+                            curve.Parcel = (int)pLineFeat.get_Value(idxParcelIDFld);
                         }
-
-                        //if the curve has an accepted curve (ie, it's a candidate to be changed), record the parcel id
-                        //if (curve.Accepted != null)
-                        //    affectedParcels.Add();
-
-                        //cache the parcel so it can be looked up later
-                        curve.Parcel = (int)pLineFeat.get_Value(idxParcelIDFld);
                     }
                 }
                 Marshal.ReleaseComObject(pLineFeat);
@@ -347,6 +361,64 @@ namespace ParcelFabricCurveByInference
 
             Total = Curves.Count;
             Inferred = Curves.Count(w => w.Action == UpdateAction.Update);
+        }
+
+        private bool evaluateJunctions(InferredCurve curve, List<RelatedLine> tangentLines)
+        {
+            //count the perpendicular lines at the start and end points of the line
+            List<RelatedLine> startPerpendicular = tangentLines.Where(t=> t.isAtStart && t.DeltaAngle > 90 - 5 && t.DeltaAngle < 90 + 5).ToList();
+            List<RelatedLine> endPerpendicular = tangentLines.Where(t=> t.isAtEnd && t.DeltaAngle > 90 - 5 && t.DeltaAngle < 90 + 5).ToList();
+
+            //if there aren't any perpendicular lines
+            if (startPerpendicular.Count == 0 && endPerpendicular.Count == 0)
+                return true;
+
+            //if both ends have perpendicular lines
+            if (startPerpendicular.Count > 0 && endPerpendicular.Count > 0)
+                return true;
+
+            List<RelatedLine> perpendiculars = endPerpendicular;
+            bool atStart = false;
+            if (startPerpendicular.Count > 0 && endPerpendicular.Count == 0)
+            {
+                atStart = true;
+                perpendiculars = startPerpendicular;
+            }
+            
+            //determin what lines are actually present
+            List<RelatedCurve> curves = null;
+            List<RelatedLine> tangents = null;
+            if (atStart)
+            {
+                curves = curve.TangentCurves.Where(w => w.isAtStart).ToList();
+                tangents = tangentLines.Where(w => w.isAtStart && w.DeltaAngle < 5).ToList();
+            }
+            else
+            {
+                curves = curve.TangentCurves.Where(w => w.isAtEnd).ToList();
+                tangents = tangentLines.Where(w => w.isAtEnd && w.DeltaAngle < 5).ToList();
+            }
+
+            //int perpendicularCount = perpendiculars.Select(w => w.DeltaAngle).Distinct().Count();
+            int tangentCount = tangents.Select(w => w.DeltaAngle).Distinct().Count();
+            int curveCount = curves.Select(w => new { w.Radius, w.CenterpointID }).Distinct().Count();
+
+            if (tangentCount == 1 && curveCount == 0)
+            {
+                // only a straight line on the other side of the perpendicular
+                return false;
+            }
+            else if (tangentCount == 0 && curveCount == 1)
+            {
+                // only a curved line on the other side of the perpendicular, so set the curve
+                curve.InferredCenterpointID = curves[0].CenterpointID;
+                curve.InferredRadius = curves[0].Radius;
+                curve.TangentLines = tangentLines;
+                return true;
+            }
+            //no comment, let the rest of the logic look through everything
+            return true;
+
         }
         
         void UpdateCurves(ICadastralFabric pCadFabric, IFeatureClass pFabricLinesFC, IEnumerable<InferredCurve> curvesToUpdate, myProgessor progressor)
@@ -1308,6 +1380,8 @@ namespace ParcelFabricCurveByInference
                     //staight line
                     if (foundPolyCurve.Length > ExcludeTangentsShorterThan)
                     {
+                        //vecOriginalSelected
+
                         IPolyline foundPolyLine = (IPolyline4)foundFeature.ShapeCopy;
                         //ISegmentCollection collection = (ISegmentCollection)polyline;
                         //ISegment segement = collection.get_Segment(collection.SegmentCount - 1);
@@ -1334,9 +1408,12 @@ namespace ParcelFabricCurveByInference
                                 break;
                         }
 
+                        IVector3D foundVector = new Vector3D() as IVector3D;
+                        foundVector.PolarSet(Angle, 0, 1);
+                        double dVectDiff = Math.Acos(vecOriginalSelected.DotProduct(foundVector));
 
                         //Console.WriteLine("Add Straight Line: {0}, {1} -> {2}", foundFeature.OID, line.Angle, ((ILine)segement).Angle);
-                        tangentLines.Add(new RelatedLine(foundFeature.OID, toDegrees(Angle), iRelativeOrientation));
+                        tangentLines.Add(new RelatedLine(foundFeature.OID, toDegrees(Angle), toDegrees(dVectDiff), iRelativeOrientation));
                     }
                     //if the feature has a null centrpointID then skip.
                     Marshal.ReleaseComObject(foundFeature);

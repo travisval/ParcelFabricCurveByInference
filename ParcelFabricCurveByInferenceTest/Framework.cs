@@ -430,7 +430,7 @@ namespace ParcelFabricCurveByInferenceTest
         static string CreateCurveItem =     "                new RelatedCurve({0}, {1}, {2}, CurveByInference.RelativeOrientation.{3})";
         static string ParallelCreateClose = "          }," + Environment.NewLine;
         static string LineCreate =          "          TangentLines = new List<RelatedLine>() {" + Environment.NewLine;
-        static string CreateLineItem =      "               new RelatedLine({0}, {1}, CurveByInference.RelativeOrientation.{2})";
+        static string CreateLineItem =      "               new RelatedLine({0}, {1}, {2}, CurveByInference.RelativeOrientation.{3})";
         static string LineCreateClose =     "          }}";
 
         static string ListJoin =            "," + Environment.NewLine;
@@ -449,7 +449,7 @@ namespace ParcelFabricCurveByInferenceTest
             strBuilder.Append(String.Join(ListJoin, (from r in curve.ParallelCurves select String.Format(CreateCurveItem, r.ObjectID, r.Radius, r.CenterpointID, r.Orientation)).ToArray()));
             strBuilder.Append(ParallelCreateClose);
             strBuilder.Append(LineCreate);
-            strBuilder.Append(String.Join(ListJoin, (from r in curve.TangentLines select String.Format(CreateLineItem, r.ObjectID, r.Angle, r.Orientation)).ToArray()));
+            strBuilder.Append(String.Join(ListJoin, (from r in curve.TangentLines select String.Format(CreateLineItem, r.ObjectID, r.Angle, r.DeltaAngle, r.Orientation)).ToArray()));
             strBuilder.Append(Environment.NewLine + LineCreateClose);
 
             return strBuilder.ToString();

@@ -10,6 +10,65 @@ namespace ParcelFabricCurveByInferenceTest
     [TestClass]
     public class Development
     {
+        #region Junction
+
+        //tests confirming a radius with the use of a junction perpendicular line
+        [TestMethod]
+        public void Junction_Comfirmed()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 114");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { 
+                new InferredCurve(114, "test", new List<RelatedCurve>() {
+                    new RelatedCurve(113, 707.106758, 3, CurveByInference.RelativeOrientation.From_To)     }){
+                    InferredRadius = 707.106758, InferredCenterpointID = 3, 
+                    ParallelCurves = new List<RelatedCurve>() {
+                    },
+                    TangentLines = new List<RelatedLine>() {
+                        new RelatedLine(121, -134.999994271838, 89.9590509563687, CurveByInference.RelativeOrientation.From_To)
+                    }}};
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+        [TestMethod]
+        public void Junction_Comfirmed_Reverse()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 116");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { 
+                 new InferredCurve(116, "test", new List<RelatedCurve>() {
+                      new RelatedCurve(113, -707.106758, 3, CurveByInference.RelativeOrientation.To_To)     }){
+                      InferredRadius = -707.106758, InferredCenterpointID = 3, 
+                      ParallelCurves = new List<RelatedCurve>() {
+                      },
+                      TangentLines = new List<RelatedLine>() {
+                           new RelatedLine(121, 45.0000057281621, 89.9549587045525, CurveByInference.RelativeOrientation.To_To)
+                      }}};
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+
+        [TestMethod]
+        public void Junction_Reject()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 125");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { };
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+        [TestMethod]
+        public void Junction_Reject_Reverse()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 128");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { };
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+
+        #endregion
+
         #region Curve with Tangent
 
         //tests confirming a radius with straight line tanget (running perfectly east - west)
