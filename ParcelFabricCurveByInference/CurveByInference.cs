@@ -366,8 +366,8 @@ namespace ParcelFabricCurveByInference
         private bool evaluateJunctions(InferredCurve curve, List<RelatedLine> tangentLines)
         {
             //count the perpendicular lines at the start and end points of the line
-            List<RelatedLine> startPerpendicular = tangentLines.Where(t=> t.isAtStart && t.DeltaAngle > 90 - 5 && t.DeltaAngle < 90 + 5).ToList();
-            List<RelatedLine> endPerpendicular = tangentLines.Where(t=> t.isAtEnd && t.DeltaAngle > 90 - 5 && t.DeltaAngle < 90 + 5).ToList();
+            List<RelatedLine> startPerpendicular = tangentLines.Where(t => t.isAtStart && t.DeltaAngle > 90 - 15 && t.DeltaAngle < 90 + 15).ToList();
+            List<RelatedLine> endPerpendicular = tangentLines.Where(t => t.isAtEnd && t.DeltaAngle > 90 - 15 && t.DeltaAngle < 90 + 15).ToList();
 
             //if there aren't any perpendicular lines
             if (startPerpendicular.Count == 0 && endPerpendicular.Count == 0)
@@ -400,16 +400,16 @@ namespace ParcelFabricCurveByInference
             }
 
             //int perpendicularCount = perpendiculars.Select(w => w.DeltaAngle).Distinct().Count();
-            int tangentCount = tangents.Select(w => w.DeltaAngle).Distinct().Count();
-            var test = curves.Select(w => new { w.Radius, w.CenterpointID }).ToArray();
-            var groupsTangentAndCP = curves.GroupBy(item => item, relatedCurveComparer).Where(group => group.Skip(1).Any());
+            
+            var groupsAngle = tangents.GroupBy(item => item, relatedLineComparer).Where(group => group.Skip(1).Any());
+            var groupsRadiusAndCP = curves.GroupBy(item => item, relatedCurveComparer).Where(group => group.Skip(1).Any());
 
-            if (tangentCount == 1 && groupsTangentAndCP.Count() == 0)
+            if (groupsAngle.Count() == 1 && groupsRadiusAndCP.Count() == 0)
             {
                 // only a straight line on the other side of the perpendicular
                 return false;
             }
-            else if (tangentCount == 0 && groupsTangentAndCP.Count() == 1)
+            else if (groupsAngle.Count() == 0 && groupsRadiusAndCP.Count() == 1)
             {
                 // only a curved line on the other side of the perpendicular, so set the curve
                 curve.InferredCenterpointID = curves[0].CenterpointID;
@@ -839,6 +839,7 @@ namespace ParcelFabricCurveByInference
         #region Inference
 
         RelatedCurveComparer relatedCurveComparer = new RelatedCurveComparer();
+        RelatedLineComparer relatedLineComparer = new RelatedLineComparer(false, true);
         bool evaluateParallelCurves(InferredCurve inferredCurve, RelatedCurve curve)
         {
             bool bHasConfirmer = false;

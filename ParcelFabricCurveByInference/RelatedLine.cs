@@ -24,15 +24,18 @@ namespace ParcelFabricCurveByInference
 
     public class RelatedLineComparer : IEqualityComparer<RelatedLine>
     {
-        bool compareOIDs;
+        bool compareOIDs, DelataOnly;
 
-        public RelatedLineComparer(bool compareOIDs = false)
+        public RelatedLineComparer(bool compareOIDs = false, bool deltaOnly = false)
         {
             this.compareOIDs = compareOIDs;
+            this.DelataOnly = deltaOnly;
         }
 
         public bool Equals(RelatedLine x, RelatedLine y)
         {
+            if (DelataOnly)
+                return Math.Abs(x.DeltaAngle - y.DeltaAngle) < 0.005;
             if (compareOIDs && x.ObjectID != y.ObjectID)
                 return false;
             return (x.Orientation == y.Orientation && Math.Abs(x.Angle - y.Angle) < 0.005 && Math.Abs(x.DeltaAngle - y.DeltaAngle) < 0.005);
@@ -40,6 +43,8 @@ namespace ParcelFabricCurveByInference
 
         public int GetHashCode(RelatedLine obj)
         {
+            if (DelataOnly)
+                return (int)(obj.DeltaAngle * 100000);
             if (compareOIDs)
                 return (int)((int)obj.Orientation * obj.ObjectID * obj.Angle);
             return (int)(obj.Angle);
