@@ -534,21 +534,11 @@ namespace ParcelFabricCurveByInference
             ICadastralFabricSchemaEdit2 pSchemaEd = (ICadastralFabricSchemaEdit2)pCadFabric;
             pSchemaEd.ReleaseReadOnlyFields((ITable)pFabricLinesFC, esriCadastralFabricTable.esriCFTLines); //release for edits
 
-            IQueryFilter m_pQF = new QueryFilter();
+            
 
             // m_pEd.StartOperation();
 
-            //Slice the list into sets that will fit into an in list
-            int curveCount = updateCurves.Count();
-            progressor.setStepProgressorProperties(curveCount, "Updating geometries");
-            for (var i = 0; i < curveCount; i += 995)
-            {
-                Dictionary<int, InferredCurve> curvesSlice = updateCurves.Skip(i).Take(995).ToDictionary(w => w.ObjectID);
-                if (!progressor.Continue())
-                    return;
-                m_pQF.WhereClause = String.Format("{0} IN ({1})", pFabricLinesFC.OIDFieldName, String.Join(",", (from oid in curvesSlice.Keys select oid.ToString()).ToArray()));
-                UpdateCircularArcValues((ITable)pFabricLinesFC, m_pQF, bIsUnVersioned, curvesSlice, progressor);
-            }
+            updateValues(updateCurves, progressor, pFabricLinesFC, bIsUnVersioned, false);
 
             ICadastralFabricRegeneration pRegenFabric = new CadastralFabricRegenerator();
             #region regenerator enum
@@ -569,7 +559,9 @@ namespace ParcelFabricCurveByInference
             pRegenFabric.CadastralFabric = pCadFabric;
             pRegenFabric.RegeneratorBitmask = 7;
             pRegenFabric.RegenerateParcels(parcelFIDs, false, progressor.cancelTracker);
-            
+
+            updateValues(updateCurves, progressor, pFabricLinesFC, bIsUnVersioned, true);
+
             m_pEd.StopOperation("Insert missing circular arc information.");
         }
 
@@ -775,7 +767,24 @@ namespace ParcelFabricCurveByInference
             return InClause;
         }
 
-        public bool UpdateCircularArcValues(ITable LineTable, IQueryFilter QueryFilter, bool Unversioned, IDictionary<int, InferredCurve> CurveLookup, myProgessor progressor)
+        public void updateValues(IEnumerable<InferredCurve> updateCurves, myProgessor progressor, IFeatureClass pFabricLinesFC, bool bIsUnVersioned, bool UpdateArcLengthOnly)
+        {
+            IQueryFilter m_pQF = new QueryFilter();
+
+            //Slice the list into sets that will fit into an in list
+            int curveCount = updateCurves.Count();
+            progressor.setStepProgressorProperties(curveCount, "Updating geometries");
+            for (var i = 0; i < curveCount; i += 995)
+            {
+                Dictionary<int, InferredCurve> curvesSlice = updateCurves.Skip(i).Take(995).ToDictionary(w => w.ObjectID);
+                if (!progressor.Continue())
+                    return;
+                m_pQF.WhereClause = String.Format("{0} IN ({1})", pFabricLinesFC.OIDFieldName, String.Join(",", (from oid in curvesSlice.Keys select oid.ToString()).ToArray()));
+                UpdateCircularArcValues((ITable)pFabricLinesFC, m_pQF, bIsUnVersioned, curvesSlice, progressor, UpdateArcLengthOnly);
+            }
+        }
+
+        public bool UpdateCircularArcValues(ITable LineTable, IQueryFilter QueryFilter, bool Unversioned, IDictionary<int, InferredCurve> CurveLookup, myProgessor progressor, bool UpdateArcLengthOnly)
         {
             try
             {
@@ -792,6 +801,7 @@ namespace ParcelFabricCurveByInference
 
                 Int32 iCtrPointIDX = pLineCurs.Fields.FindField("CENTERPOINTID");
                 Int32 iRadiusIDX = pLineCurs.Fields.FindField("RADIUS");
+                Int32 iArcLengthIDX = pLineCurs.Fields.FindField("ARCLENGTH");
 
                 while ((pLineFeat = pLineCurs.NextRow()) != null)
                 {//loop through all of the given lines, and update centerpoint ids and the Radius values
@@ -814,8 +824,25 @@ namespace ParcelFabricCurveByInference
                     //double dRadius = Convert.ToDouble(sCurveInfo[0]);
                     //int iCtrPointID = Convert.ToInt32(sCurveInfo[1]);
 
-                    pLineFeat.set_Value(iRadiusIDX, curveInfo.InferredRadius);
-                    pLineFeat.set_Value(iCtrPointIDX, curveInfo.InferredCenterpointID);
+                    if (UpdateArcLengthOnly)
+                    {
+                        //Calculate arclength
+                        IFeature feature = pLineFeat as IFeature;
+                        if (feature != null)
+                        {
+                            IPolycurve polycurve = feature.Shape as IPolycurve;
+                            if (polycurve != null)
+                            {
+                                double length = ((IProximityOperator)polycurve.FromPoint).ReturnDistance(polycurve.ToPoint);
+                                pLineFeat.set_Value(iArcLengthIDX, length);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        pLineFeat.set_Value(iRadiusIDX, curveInfo.InferredRadius);
+                        pLineFeat.set_Value(iCtrPointIDX, curveInfo.InferredCenterpointID);
+                    }
 
                     if (Unversioned)
                         pLineCurs.UpdateRow(pLineFeat);
