@@ -224,5 +224,45 @@ namespace ParcelFabricCurveByInferenceTest
         }
 
         #endregion
+
+        #region parallel curve
+
+        [TestMethod]
+        public void Parallel()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 132 and Objectid <> 134");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { 
+                 new InferredCurve(132, "test", new List<RelatedCurve>() {
+                      new RelatedCurve(131, 707.106758, 6, CurveByInference.RelativeOrientation.From_To)     }){
+                      InferredRadius = 707.106758, InferredCenterpointID = 6, 
+                      ParallelCurves = new List<RelatedCurve>() {
+                            new RelatedCurve(141, 707.10653754906, 6, CurveByInference.RelativeOrientation.Parallel)          },
+                      TangentLines = new List<RelatedLine>() {
+
+                      }}};
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+
+        [TestMethod]
+        public void Parallel_withPositiveBlocker()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 143");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { 
+                new InferredCurve(143, "test", new List<RelatedCurve>() {
+                    new RelatedCurve(142, 707.106758, 7, CurveByInference.RelativeOrientation.From_To)     }){
+                    ParallelCurves = new List<RelatedCurve>() {
+                    },
+                    TangentLines = new List<RelatedLine>() {
+                        new RelatedLine(144, 45, 90.0409547336785, CurveByInference.RelativeOrientation.To_From),
+                        new RelatedLine(145, 45, 90.0409547336785, CurveByInference.RelativeOrientation.To_To)
+                    }}};
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+
+        #endregion
     }
 }
