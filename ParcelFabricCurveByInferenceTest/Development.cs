@@ -84,7 +84,7 @@ namespace ParcelFabricCurveByInferenceTest
                   ParallelCurves = new List<RelatedCurve>() {
                   },
                   TangentLines = new List<RelatedLine>() {
-                       new RelatedLine(7, Framework.toDegrees(3.14159265358979), CurveByInference.RelativeOrientation.From_To)
+                       new RelatedLine(7, 180, 0, CurveByInference.RelativeOrientation.From_To)
             }}};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
@@ -101,7 +101,7 @@ namespace ParcelFabricCurveByInferenceTest
                       ParallelCurves = new List<RelatedCurve>() {
                       },
                       TangentLines = new List<RelatedLine>() {
-                           new RelatedLine(7, 0, CurveByInference.RelativeOrientation.To_To)
+                            new RelatedLine(7, 0, 0, CurveByInference.RelativeOrientation.To_To)
                       }}};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
@@ -120,7 +120,7 @@ namespace ParcelFabricCurveByInferenceTest
                       ParallelCurves = new List<RelatedCurve>() {
                       },
                       TangentLines = new List<RelatedLine>() {
-                           new RelatedLine(14, Framework.toDegrees(-1.12077372905881), CurveByInference.RelativeOrientation.To_To)
+                           new RelatedLine(14, -64.2418875563753, 0.0262830909297305, CurveByInference.RelativeOrientation.To_To)
                       }}};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
@@ -137,7 +137,7 @@ namespace ParcelFabricCurveByInferenceTest
                       ParallelCurves = new List<RelatedCurve>() {
                       },
                       TangentLines = new List<RelatedLine>() {
-                           new RelatedLine(14, Framework.toDegrees(2.02081892453098), CurveByInference.RelativeOrientation.From_To)
+                           new RelatedLine(14, 115.758112443625, 0.0262830909435974, CurveByInference.RelativeOrientation.From_To)
                       }}};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
@@ -156,7 +156,7 @@ namespace ParcelFabricCurveByInferenceTest
                     ParallelCurves = new List<RelatedCurve>() {
                     },
                     TangentLines = new List<RelatedLine>() {
-                        new RelatedLine(22, Framework.toDegrees(1.5707963267949), CurveByInference.RelativeOrientation.To_From)
+                        new RelatedLine(22, 90, 0, CurveByInference.RelativeOrientation.To_From)
                     }}};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
@@ -173,7 +173,7 @@ namespace ParcelFabricCurveByInferenceTest
                       ParallelCurves = new List<RelatedCurve>() {
                       },
                       TangentLines = new List<RelatedLine>() {
-                           new RelatedLine(22, Framework.toDegrees(-1.5707963267949), CurveByInference.RelativeOrientation.From_From)
+                           new RelatedLine(22, -90, 0, CurveByInference.RelativeOrientation.From_From)
                       }}};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
@@ -191,15 +191,14 @@ namespace ParcelFabricCurveByInferenceTest
                       ParallelCurves = new List<RelatedCurve>() {
                       },
                       TangentLines = new List<RelatedLine>() {
-                           new RelatedLine(37, Framework.toDegrees(-2.35619449019234), CurveByInference.RelativeOrientation.To_To),
-                           //new RelatedLine(38, Framework.toDegrees(-0.785398163397448), CurveByInference.RelativeOrientation.To_To),
-                           new RelatedLine(41, Framework.toDegrees(0.785398163397448), CurveByInference.RelativeOrientation.To_From),
-                           new RelatedLine(57, Framework.toDegrees(0.785398163397448), CurveByInference.RelativeOrientation.To_To),
-                           new RelatedLine(58, Framework.toDegrees(-2.35619449019234), CurveByInference.RelativeOrientation.To_From),
-                           //new RelatedLine(59, Framework.toDegrees(-0.785398163397448), CurveByInference.RelativeOrientation.To_From)
+                           new RelatedLine(37, -135, 89.9590452282066, CurveByInference.RelativeOrientation.To_To),
+                           new RelatedLine(41, 45, 90.0409547717934, CurveByInference.RelativeOrientation.To_From),
+                           new RelatedLine(57, 45, 90.0409547717934, CurveByInference.RelativeOrientation.To_To),
+                           new RelatedLine(58, -135, 89.9590452282066, CurveByInference.RelativeOrientation.To_From)
                       }}};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+
         }
         [TestMethod]
         public void Tangent_Confirmer_40_Reverse()
@@ -212,12 +211,10 @@ namespace ParcelFabricCurveByInferenceTest
                     ParallelCurves = new List<RelatedCurve>() {
                     },
                     TangentLines = new List<RelatedLine>() {
-                        new RelatedLine(37, Framework.toDegrees(0.785398163397448), CurveByInference.RelativeOrientation.From_To),
-                        //new RelatedLine(38, Framework.toDegrees(2.35619449019234), CurveByInference.RelativeOrientation.From_To),
-                        new RelatedLine(41, Framework.toDegrees(-2.35619449019234), CurveByInference.RelativeOrientation.From_From),
-                        new RelatedLine(57, Framework.toDegrees(-2.35619449019234), CurveByInference.RelativeOrientation.From_To),
-                        new RelatedLine(58, Framework.toDegrees(0.785398163397448), CurveByInference.RelativeOrientation.From_From),
-                        //new RelatedLine(59, Framework.toDegrees(2.35619449019234), CurveByInference.RelativeOrientation.From_From)
+                        new RelatedLine(37, 45, 89.9549529763904, CurveByInference.RelativeOrientation.From_To),
+                        new RelatedLine(41, -135, 90.0450470236096, CurveByInference.RelativeOrientation.From_From),
+                        new RelatedLine(57, -135, 90.0450470236096, CurveByInference.RelativeOrientation.From_To),
+                        new RelatedLine(58, 45, 89.9549529763904, CurveByInference.RelativeOrientation.From_From)
                     }}};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);

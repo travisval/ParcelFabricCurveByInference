@@ -400,9 +400,10 @@ namespace ParcelFabricCurveByInference
             }
 
             //int perpendicularCount = perpendiculars.Select(w => w.DeltaAngle).Distinct().Count();
-            
-            var groupsAngle = tangents.GroupBy(item => item, relatedLineComparer).Where(group => group.Skip(1).Any());
-            var groupsRadiusAndCP = curves.GroupBy(item => item, relatedCurveComparer).Where(group => group.Skip(1).Any());
+
+            var groupsAngle = tangents.GroupBy(item => item, relatedLineComparer);
+            //var groupsRadiusAndCP = curves.GroupBy(item => item, relatedCurveComparer).Where(group => group.Skip(1).Any());
+            var groupsRadiusAndCP = curves.GroupBy(item => item, relatedCurveComparer);
 
             if (groupsAngle.Count() == 1 && groupsRadiusAndCP.Count() == 0)
             {
@@ -1071,6 +1072,7 @@ namespace ParcelFabricCurveByInference
 
             IPoint midpoint = new Point();
             inPolycurve.QueryPoint(esriSegmentExtension.esriNoExtension, 0.5, true, midpoint);
+            double lengthFiler = inPolycurve.Length * 3;
             double closestStraighLine = Double.MaxValue;
             IFeature pFeat = null;
             while ((pFeat = pFeatCursLines.NextFeature()) != null)
@@ -1079,6 +1081,7 @@ namespace ParcelFabricCurveByInference
                     continue;
 
                 IGeometry pFoundLineGeom = pFeat.ShapeCopy;
+                IPolyline pFoundPolyline = pFoundLineGeom as IPolyline;
 
                 ITopologicalOperator6 pTopoOp6 = (ITopologicalOperator6)queryMultiPartPolyLine;
                 IGeometry intersectionPoint = pTopoOp6.IntersectEx(pFoundLineGeom, false, esriGeometryDimension.esriGeometry0Dimension);
@@ -1098,7 +1101,7 @@ namespace ParcelFabricCurveByInference
                 int? centerpointID = pFeat.get_Value(idxCenterPointID) is DBNull ? null : (int?)pFeat.get_Value(idxCenterPointID);
                 if (dRadius == 0 || centerpointID == null)
                 {//null centrpointID so skip.
-                    if (closestStraighLine > distanceToLine)
+                    if (closestStraighLine > distanceToLine && pFoundPolyline.Length > lengthFiler)
                     {
                         closestStraighLine = distanceToLine;
                         CurveInfoFromNeighbours.RemoveAll(w=>w.DistanceToLine > closestStraighLine);
