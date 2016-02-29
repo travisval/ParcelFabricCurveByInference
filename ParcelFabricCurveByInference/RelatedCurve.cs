@@ -9,6 +9,7 @@ namespace ParcelFabricCurveByInference
     {
         public double Radius { get; set; }
         public int CenterpointID { get; set; }
+        public double DistanceToLine { get; set; }
 
         //controls the visibilty of update related UI components
         static CurveByInference.RelativeOrientation[] UpdateableOrientations = new CurveByInference.RelativeOrientation[] {
@@ -17,15 +18,20 @@ namespace ParcelFabricCurveByInference
             CurveByInference.RelativeOrientation.From_To,
             CurveByInference.RelativeOrientation.From_From
         };
-
         public RelatedCurve(int id, double radius, int centerpointID, CurveByInference.RelativeOrientation orientation)
+            : this(id, radius, centerpointID, 0.0, orientation)
+        {
+        }
+        public RelatedCurve(int id, double radius, int centerpointID, double distanceToLine, CurveByInference.RelativeOrientation orientation)
             : base (id, orientation)
         {
             this.Radius = radius;
             this.CenterpointID = centerpointID;
+            this.DistanceToLine = distanceToLine;
             if (UpdateableOrientations.Contains(Orientation))
                 UpdateVisibility = System.Windows.Visibility.Visible;
         }
+
     }
     public class RelatedCurveComparer : IEqualityComparer<RelatedCurve>
     {

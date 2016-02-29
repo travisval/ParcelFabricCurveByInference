@@ -330,7 +330,7 @@ namespace ParcelFabricCurveByInference
                                 {
                                     //if there's only one tangent look further afield
                                     if (curve.TangentCurves.Count == 1)
-                                        curve.ParallelCurves = GetParallelCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "");
+                                        curve.ParallelCurves = GetParallelCurveMatchFeatures(pFabricLinesFC, pLineFeat, (IPolycurve)polyLine, "");
 
                                     //Determin if there is enough information to actually set the radius and centerpoint
                                     RefineToBestRadiusAndCenterPoint(curve);
@@ -400,9 +400,10 @@ namespace ParcelFabricCurveByInference
             }
 
             //int perpendicularCount = perpendiculars.Select(w => w.DeltaAngle).Distinct().Count();
-            
-            var groupsAngle = tangents.GroupBy(item => item, relatedLineComparer).Where(group => group.Skip(1).Any());
-            var groupsRadiusAndCP = curves.GroupBy(item => item, relatedCurveComparer).Where(group => group.Skip(1).Any());
+
+            var groupsAngle = tangents.GroupBy(item => item, relatedLineComparer);
+            //var groupsRadiusAndCP = curves.GroupBy(item => item, relatedCurveComparer).Where(group => group.Skip(1).Any());
+            var groupsRadiusAndCP = curves.GroupBy(item => item, relatedCurveComparer);
 
             if (groupsAngle.Count() == 1 && groupsRadiusAndCP.Count() == 0)
             {
@@ -534,21 +535,11 @@ namespace ParcelFabricCurveByInference
             ICadastralFabricSchemaEdit2 pSchemaEd = (ICadastralFabricSchemaEdit2)pCadFabric;
             pSchemaEd.ReleaseReadOnlyFields((ITable)pFabricLinesFC, esriCadastralFabricTable.esriCFTLines); //release for edits
 
-            IQueryFilter m_pQF = new QueryFilter();
+            
 
             // m_pEd.StartOperation();
 
-            //Slice the list into sets that will fit into an in list
-            int curveCount = updateCurves.Count();
-            progressor.setStepProgressorProperties(curveCount, "Updating geometries");
-            for (var i = 0; i < curveCount; i += 995)
-            {
-                Dictionary<int, InferredCurve> curvesSlice = updateCurves.Skip(i).Take(995).ToDictionary(w => w.ObjectID);
-                if (!progressor.Continue())
-                    return;
-                m_pQF.WhereClause = String.Format("{0} IN ({1})", pFabricLinesFC.OIDFieldName, String.Join(",", (from oid in curvesSlice.Keys select oid.ToString()).ToArray()));
-                UpdateCircularArcValues((ITable)pFabricLinesFC, m_pQF, bIsUnVersioned, curvesSlice, progressor);
-            }
+            updateValues(updateCurves, progressor, pFabricLinesFC, bIsUnVersioned, false);
 
             ICadastralFabricRegeneration pRegenFabric = new CadastralFabricRegenerator();
             #region regenerator enum
@@ -569,7 +560,9 @@ namespace ParcelFabricCurveByInference
             pRegenFabric.CadastralFabric = pCadFabric;
             pRegenFabric.RegeneratorBitmask = 7;
             pRegenFabric.RegenerateParcels(parcelFIDs, false, progressor.cancelTracker);
-            
+
+            //updateValues(updateCurves, progressor, pFabricLinesFC, bIsUnVersioned, true);
+
             m_pEd.StopOperation("Insert missing circular arc information.");
         }
 
@@ -775,7 +768,24 @@ namespace ParcelFabricCurveByInference
             return InClause;
         }
 
-        public bool UpdateCircularArcValues(ITable LineTable, IQueryFilter QueryFilter, bool Unversioned, IDictionary<int, InferredCurve> CurveLookup, myProgessor progressor)
+        public void updateValues(IEnumerable<InferredCurve> updateCurves, myProgessor progressor, IFeatureClass pFabricLinesFC, bool bIsUnVersioned, bool UpdateArcLengthOnly)
+        {
+            IQueryFilter m_pQF = new QueryFilter();
+
+            //Slice the list into sets that will fit into an in list
+            int curveCount = updateCurves.Count();
+            progressor.setStepProgressorProperties(curveCount, "Updating geometries");
+            for (var i = 0; i < curveCount; i += 995)
+            {
+                Dictionary<int, InferredCurve> curvesSlice = updateCurves.Skip(i).Take(995).ToDictionary(w => w.ObjectID);
+                if (!progressor.Continue())
+                    return;
+                m_pQF.WhereClause = String.Format("{0} IN ({1})", pFabricLinesFC.OIDFieldName, String.Join(",", (from oid in curvesSlice.Keys select oid.ToString()).ToArray()));
+                UpdateCircularArcValues((ITable)pFabricLinesFC, m_pQF, bIsUnVersioned, curvesSlice, progressor, UpdateArcLengthOnly);
+            }
+        }
+
+        public bool UpdateCircularArcValues(ITable LineTable, IQueryFilter QueryFilter, bool Unversioned, IDictionary<int, InferredCurve> CurveLookup, myProgessor progressor, bool UpdateArcLengthOnly)
         {
             try
             {
@@ -792,6 +802,7 @@ namespace ParcelFabricCurveByInference
 
                 Int32 iCtrPointIDX = pLineCurs.Fields.FindField("CENTERPOINTID");
                 Int32 iRadiusIDX = pLineCurs.Fields.FindField("RADIUS");
+                Int32 iArcLengthIDX = pLineCurs.Fields.FindField("ARCLENGTH");
 
                 while ((pLineFeat = pLineCurs.NextRow()) != null)
                 {//loop through all of the given lines, and update centerpoint ids and the Radius values
@@ -814,8 +825,25 @@ namespace ParcelFabricCurveByInference
                     //double dRadius = Convert.ToDouble(sCurveInfo[0]);
                     //int iCtrPointID = Convert.ToInt32(sCurveInfo[1]);
 
-                    pLineFeat.set_Value(iRadiusIDX, curveInfo.InferredRadius);
-                    pLineFeat.set_Value(iCtrPointIDX, curveInfo.InferredCenterpointID);
+                    if (UpdateArcLengthOnly)
+                    {
+                        //Calculate arclength
+                        IFeature feature = pLineFeat as IFeature;
+                        if (feature != null)
+                        {
+                            IPolycurve polycurve = feature.Shape as IPolycurve;
+                            if (polycurve != null)
+                            {
+                                double length = ((IProximityOperator)polycurve.FromPoint).ReturnDistance(polycurve.ToPoint);
+                                pLineFeat.set_Value(iArcLengthIDX, length);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        pLineFeat.set_Value(iRadiusIDX, curveInfo.InferredRadius);
+                        pLineFeat.set_Value(iCtrPointIDX, curveInfo.InferredCenterpointID);
+                    }
 
                     if (Unversioned)
                         pLineCurs.UpdateRow(pLineFeat);
@@ -964,7 +992,7 @@ namespace ParcelFabricCurveByInference
             }
         }
 
-        public List<RelatedCurve> GetParallelCurveMatchFeatures(IFeatureClass FeatureClass, IPolycurve inPolycurve, string WhereClause)
+        public List<RelatedCurve> GetParallelCurveMatchFeatures(IFeatureClass FeatureClass, IFeature inFeature, IPolycurve inPolycurve, string WhereClause)
             //double AngleToleranceTangentCompareInDegrees, double OrthogonalSearchDistance,
             //                                        out int outFoundLinesCount, out int outFoundParallelCurvesCount, ref List<RelatedCurve> CurveInfoFromNeighbours)
         {
@@ -1019,11 +1047,13 @@ namespace ParcelFabricCurveByInference
             //search for records that intersect these perpendicular geometries
 
             ISpatialFilter spatialFilter = (ISpatialFilter)new SpatialFilter();
-            //spatialFilter.WhereClause = WhereClause;
-            if (String.IsNullOrEmpty(WhereClause))
-                spatialFilter.WhereClause = "CenterPointID is not null and Radius is not null and Radius <> 0";
-            else
-                spatialFilter.WhereClause = string.Concat(WhereClause, " and CenterPointID is not null and Radius is not null and Radius <> 0");
+            spatialFilter.WhereClause = WhereClause;
+
+            //we can't filter on this any more because we need to make sure that no straight line is closer that the curve
+            //if (String.IsNullOrEmpty(WhereClause))
+            //    spatialFilter.WhereClause = "CenterPointID is not null and Radius is not null and Radius <> 0";
+            //else
+            //    spatialFilter.WhereClause = string.Concat(WhereClause, " and CenterPointID is not null and Radius is not null and Radius <> 0");
             spatialFilter.SpatialRel = esriSpatialRelEnum.esriSpatialRelIntersects;
             spatialFilter.SearchOrder = esriSearchOrder.esriSearchOrderSpatial;
 
@@ -1040,36 +1070,49 @@ namespace ParcelFabricCurveByInference
                 return CurveInfoFromNeighbours;
             }
 
-            IFeature pFeat = pFeatCursLines.NextFeature();
-            while (pFeat != null)
+            IPoint midpoint = new Point();
+            inPolycurve.QueryPoint(esriSegmentExtension.esriNoExtension, 0.5, true, midpoint);
+            double lengthFiler = inPolycurve.Length * 3;
+            double closestStraighLine = Double.MaxValue;
+            IFeature pFeat = null;
+            while ((pFeat = pFeatCursLines.NextFeature()) != null)
             {
+                if (inFeature.OID == pFeat.OID)
+                    continue;
+
                 IGeometry pFoundLineGeom = pFeat.ShapeCopy;
+                IPolyline pFoundPolyline = pFoundLineGeom as IPolyline;
+
+                ITopologicalOperator6 pTopoOp6 = (ITopologicalOperator6)queryMultiPartPolyLine;
+                IGeometry intersectionPoint = pTopoOp6.IntersectEx(pFoundLineGeom, false, esriGeometryDimension.esriGeometry0Dimension);
+                if (intersectionPoint == null || intersectionPoint.IsEmpty)
+                {
+                    // there isn't actually an intersection between the features
+                    Marshal.ReleaseComObject(pFeat);
+                    continue;
+                }
+
+                //distance from intersection of tangent line and found feature to the start point of the tangent line
+                 
+                double distanceToLine = ((IProximityOperator)intersectionPoint).ReturnDistance(midpoint);
 
                 //if the feature has no radius attribute, skip.
                 double dRadius = pFeat.get_Value(idxRadius) is DBNull ? 0 : (double)pFeat.get_Value(idxRadius);
-                if (dRadius == 0)
-                {//null or zero radius so skip.
-                    Marshal.ReleaseComObject(pFeat);
-                    pFeat = pFeatCursLines.NextFeature();
-                    continue;
-                }
-
                 int? centerpointID = pFeat.get_Value(idxCenterPointID) is DBNull ? null : (int?)pFeat.get_Value(idxCenterPointID);
-                if (centerpointID == null)
+                if (dRadius == 0 || centerpointID == null)
                 {//null centrpointID so skip.
+                    if (closestStraighLine > distanceToLine && pFoundPolyline.Length > lengthFiler)
+                    {
+                        closestStraighLine = distanceToLine;
+                        CurveInfoFromNeighbours.RemoveAll(w=>w.DistanceToLine > closestStraighLine);
+                    }
                     Marshal.ReleaseComObject(pFeat);
-                    pFeat = pFeatCursLines.NextFeature();
                     continue;
                 }
 
-                ITopologicalOperator6 pTopoOp6 = (ITopologicalOperator6)queryMultiPartPolyLine;
-                IGeometry pResultGeom = pTopoOp6.IntersectEx(pFoundLineGeom, false, esriGeometryDimension.esriGeometry0Dimension);
-                if (pResultGeom == null || pResultGeom.IsEmpty)
-                {
-                    Marshal.ReleaseComObject(pFeat);
-                    pFeat = pFeatCursLines.NextFeature();
+                //out past a straight line
+                if (closestStraighLine < distanceToLine)
                     continue;
-                }
 
                 ISegmentCollection pFoundLineGeomSegs = pFoundLineGeom as ISegmentCollection;
                 bool bHasCurves = false;
@@ -1077,15 +1120,14 @@ namespace ParcelFabricCurveByInference
                 if (!bHasCurves)
                 {
                     Marshal.ReleaseComObject(pFeat);
-                    pFeat = pFeatCursLines.NextFeature();
                     continue;
                 }
 
-                IPointCollection5 PtColl = (IPointCollection5)pResultGeom;
+                IPointCollection5 PtColl = (IPointCollection5)intersectionPoint;
                 if (PtColl.PointCount > 1)
                 {
+                    // the intersection isn't a point
                     Marshal.ReleaseComObject(pFeat);
-                    pFeat = pFeatCursLines.NextFeature();
                     continue;
                 }
                 IPolycurve pPolyCurve4Tangent = pFoundLineGeom as IPolycurve;
@@ -1156,12 +1198,11 @@ namespace ParcelFabricCurveByInference
                         dDerivedRadius = dDerivedRadius * dUnitSignChange;
 
                         //string sHarvestedCurveInfo = pFeat.OID.ToString() + "," + dDerivedRadius.ToString("#.000") + "," + centerpointID.ToString() + "," + dRadiusDiff.ToString("#.000");
-                        CurveInfoFromNeighbours.Add(new RelatedCurve(pFeat.OID, dDerivedRadius, centerpointID.Value, RelativeOrientation.Parallel));
+                        CurveInfoFromNeighbours.Add(new RelatedCurve(pFeat.OID, dDerivedRadius, centerpointID.Value, distanceToLine, RelativeOrientation.Parallel));
                     }
                 }
 
                 Marshal.ReleaseComObject(pFeat);
-                pFeat = pFeatCursLines.NextFeature();
             }
             Marshal.FinalReleaseComObject(pFeatCursLines);
 
