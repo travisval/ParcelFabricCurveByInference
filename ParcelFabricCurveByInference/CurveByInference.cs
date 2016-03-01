@@ -1314,6 +1314,7 @@ namespace ParcelFabricCurveByInference
                 }
 
                 IGeometry foundLineGeom = foundFeature.ShapeCopy;
+                IPolyline foundPolyLine = foundLineGeom as IPolyline4;
                 IPolycurve foundPolyCurve = foundLineGeom as IPolycurve;
                 RelativeOrientation iRelativeOrientation = GetRelativeOrientation(foundPolyCurve, inPolycurve);
                 //iRelativeOrientation == 1 --> closest points are original TO and found TO
@@ -1330,6 +1331,7 @@ namespace ParcelFabricCurveByInference
                 {
                     if (foundRadius > 0 && foundCentriodID.HasValue)
                     {
+                        //Curved line
                         double adjustedRadius = iRelativeOrientation == RelativeOrientation.Same ? foundRadius : -1 * foundRadius;
 
                         CurveInfoFromNeighbours.Clear();
@@ -1337,6 +1339,16 @@ namespace ParcelFabricCurveByInference
                         Marshal.ReleaseComObject(foundFeature);
                         Marshal.FinalReleaseComObject(pFeatCursLines);
                         return CurveInfoFromNeighbours;
+                    }
+                    else if (foundPolyLine.Length > inPolycurve.Length * 3)
+                    {
+                        //straight line
+                        CurveInfoFromNeighbours.Clear();
+
+                        Marshal.ReleaseComObject(foundFeature);
+                        Marshal.FinalReleaseComObject(pFeatCursLines);
+                        return CurveInfoFromNeighbours;
+
                     }
                     Marshal.ReleaseComObject(foundFeature);
                     continue;
@@ -1425,7 +1437,6 @@ namespace ParcelFabricCurveByInference
                     {
                         //vecOriginalSelected
 
-                        IPolyline foundPolyLine = (IPolyline4)foundFeature.ShapeCopy;
                         //ISegmentCollection collection = (ISegmentCollection)polyline;
                         //ISegment segement = collection.get_Segment(collection.SegmentCount - 1);
                         ILine line = new Line();

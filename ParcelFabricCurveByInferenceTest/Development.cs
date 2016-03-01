@@ -334,5 +334,45 @@ namespace ParcelFabricCurveByInferenceTest
         }
 
         #endregion
+
+        [TestMethod]
+        public void StraightLineOverride1()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 169");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { };
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+
+        [TestMethod]
+        public void StraightLineOverride2()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 179");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { };
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+
+        [TestMethod]
+        public void StraightLineOverride3()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 184");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { };
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+
+        [TestMethod]
+        public void StraightLineOverride4()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 187");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { };
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
     }
 }
