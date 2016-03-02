@@ -16,8 +16,8 @@ namespace ParcelFabricCurveByInferenceTest
         static bool AOInitilialized = false;
         static ESRI.ArcGIS.esriSystem.IAoInitialize aoInitialize;
 
-        static string baseGeodatabasePath;
-        static string baseDevGeodatabasePath;
+        public static string baseGeodatabasePath;
+        public static string baseDevGeodatabasePath;
         static IWorkspace workspace;
        
         [AssemblyInitialize()]
@@ -49,7 +49,7 @@ namespace ParcelFabricCurveByInferenceTest
             //    aoInitialize.Shutdown();
         }
 
-        public static CurveByInference RunTest(String FeatureDatasetName, String CadastralFabricName, string whereClause = null, string OrderBy = null, String GDBPath = null)
+        public static CurveByInference RunTest(String FeatureDatasetName, String CadastralFabricName, string whereClause = null, string OrderBy = null, String GDBPath = null, bool withUpdate = false)
         {
             if (String.IsNullOrEmpty(GDBPath))
                 GDBPath = baseGeodatabasePath;
@@ -77,6 +77,12 @@ namespace ParcelFabricCurveByInferenceTest
             curveByInference.FindCurves("test", featureClass, null, whereClause, idxRADIUS, idxCENTERPTID, idxParcelIDFld, new myProgessor());
 
             Console.WriteLine(Framework.GenerateConstructorStatment(curveByInference.Curves));
+
+            if(withUpdate)
+            {
+                curveByInference.UpdateCurves(cadFabric, featureClass, curveByInference.Curves, new myProgessor());
+            }
+
             return curveByInference;
         }
 

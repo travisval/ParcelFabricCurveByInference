@@ -185,6 +185,9 @@ namespace ParcelFabricCurveByInference
                 updateCurves = Curves;
 
 
+            if (m_pEd == null)
+                throw new Exception("Curves can not be updates without an editing environmanet");
+
             if (m_pEd.EditState == esriEditState.esriStateNotEditing)
             {
                 messageBox.Show("Please start editing first, and try again.");
@@ -194,8 +197,6 @@ namespace ParcelFabricCurveByInference
             if (hasOpenJob())
                 return;
 
-            if (m_pEd == null)
-                throw new Exception("Curves can not be updates without an editing environmanet");
             
             IMap pMap = m_pEd.Map;
 
@@ -423,14 +424,14 @@ namespace ParcelFabricCurveByInference
 
         }
         
-        void UpdateCurves(ICadastralFabric pCadFabric, IFeatureClass pFabricLinesFC, IEnumerable<InferredCurve> curvesToUpdate, myProgessor progressor)
+        public void UpdateCurves(ICadastralFabric pCadFabric, IFeatureClass pFabricLinesFC, IEnumerable<InferredCurve> curvesToUpdate, myProgessor progressor)
         {
             IEnumerable<InferredCurve> updateCurves = (from InferredCurve c in curvesToUpdate where c.Action == UpdateAction.Update select c);
 
             bool bIsFileBasedGDB = false;
             bool bIsUnVersioned = false;
             bool bUseNonVersionedDelete = false;
-            IWorkspace pWS = m_pEd.EditWorkspace;
+            IWorkspace pWS = m_pEd != null ? m_pEd.EditWorkspace : ((IDataset)pFabricLinesFC).Workspace;
 
             if (!SetupEditEnvironment(pWS, pCadFabric, m_pEd, out bIsFileBasedGDB, out bIsUnVersioned, out bUseNonVersionedDelete))
             {
@@ -511,7 +512,7 @@ namespace ParcelFabricCurveByInference
             }
             #endregion
 
-            if (m_pEd.EditState == esriEditState.esriStateEditing)
+            if (m_pEd != null && m_pEd.EditState == esriEditState.esriStateEditing)
             {
                 try
                 {
@@ -523,6 +524,14 @@ namespace ParcelFabricCurveByInference
                     m_pEd.StartOperation();
                 }
             }
+            else
+            {
+                //this code is extecuted by the tests, only executed against a file gdb
+                IWorkspaceEdit wsEdit = (IWorkspaceEdit)pWS;
+                wsEdit.StartEditing(false);
+                wsEdit.StartEditOperation();
+            }
+
             if (bUseNonVersionedDelete)
             {
                 if (!StartEditing(pWS, bIsUnVersioned))
@@ -561,9 +570,19 @@ namespace ParcelFabricCurveByInference
             pRegenFabric.RegeneratorBitmask = 7;
             pRegenFabric.RegenerateParcels(parcelFIDs, false, progressor.cancelTracker);
 
-            //updateValues(updateCurves, progressor, pFabricLinesFC, bIsUnVersioned, true);
+            updateValues(updateCurves, progressor, pFabricLinesFC, bIsUnVersioned, true);
 
-            m_pEd.StopOperation("Insert missing circular arc information.");
+            if (m_pEd != null)
+            {
+                m_pEd.StopOperation("Insert missing circular arc information.");
+            }
+            else
+            {
+                //this code is extecuted by the tests, only executed against a file gdb
+                IWorkspaceEdit wsEdit = (IWorkspaceEdit)pWS;
+                wsEdit.StartEditOperation();
+                wsEdit.StopEditing(false);
+            }
         }
 
         #region Access
@@ -651,10 +670,9 @@ namespace ParcelFabricCurveByInference
                 //   "\r\n Please register as versioned, and try again.");
                 //return false;
             }
-            else if ((TheEditor.EditState == esriEditState.esriStateNotEditing))
+            else if (TheEditor != null && TheEditor.EditState == esriEditState.esriStateNotEditing)
             {
-                messageBox.Show("Please start editing first and try again.", "Delete",
-                  MessageBoxButtons.OK);
+                messageBox.Show("Please start editing first and try again.", "Delete", MessageBoxButtons.OK);
                 return false;
             }
             return true;
@@ -805,44 +823,25 @@ namespace ParcelFabricCurveByInference
                 Int32 iArcLengthIDX = pLineCurs.Fields.FindField("ARCLENGTH");
 
                 while ((pLineFeat = pLineCurs.NextRow()) != null)
-                {//loop through all of the given lines, and update centerpoint ids and the Radius values
+                {
+                    //loop through all of the given lines, and update centerpoint ids and the Radius values
                     if (!progressor.Continue())
                         return false;
                     progressor.Step();
-
-                    //List<string> CurveInfoList = CurveLookup[pLineFeat.OID];
-                    //InferredCurve CurveInfoList = CurveLookup[pLineFeat.OID];
-
-                    //string[] sCurveInfo = CurveInfoList[0].Split(','); //should only be one element in the list at this point
-                    //RelatedCurve curveInfo = CurveInfoList.FirstOrDefault(w=>w.Accepted);
+                    
                     InferredCurve curveInfo = CurveLookup[pLineFeat.OID];
-                    //if (sCurveInfo.Length > 2)
-                    //if (!curveInfo.)
-                    //{
-                    //    Marshal.ReleaseComObject(pLineFeat); //garbage collection
-                    //    continue;
-                    //}
-                    //double dRadius = Convert.ToDouble(sCurveInfo[0]);
-                    //int iCtrPointID = Convert.ToInt32(sCurveInfo[1]);
 
-                    if (UpdateArcLengthOnly)
+                    pLineFeat.set_Value(iRadiusIDX, curveInfo.InferredRadius);
+                    pLineFeat.set_Value(iCtrPointIDX, curveInfo.InferredCenterpointID);
+                    IFeature feature = pLineFeat as IFeature;
+                    if (feature != null)
                     {
-                        //Calculate arclength
-                        IFeature feature = pLineFeat as IFeature;
-                        if (feature != null)
+                        IPolyline polycurve = feature.ShapeCopy as IPolyline;
+                        if (polycurve != null)
                         {
-                            IPolycurve polycurve = feature.Shape as IPolycurve;
-                            if (polycurve != null)
-                            {
-                                double length = ((IProximityOperator)polycurve.FromPoint).ReturnDistance(polycurve.ToPoint);
-                                pLineFeat.set_Value(iArcLengthIDX, length);
-                            }
+                            double length = ((IProximityOperator)polycurve.FromPoint).ReturnDistance(polycurve.ToPoint);
+                            pLineFeat.set_Value(iArcLengthIDX, length);
                         }
-                    }
-                    else
-                    {
-                        pLineFeat.set_Value(iRadiusIDX, curveInfo.InferredRadius);
-                        pLineFeat.set_Value(iCtrPointIDX, curveInfo.InferredCenterpointID);
                     }
 
                     if (Unversioned)
