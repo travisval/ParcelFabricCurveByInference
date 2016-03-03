@@ -46,6 +46,11 @@ namespace ParcelFabricCurveByInference
         /// The max difference (in degrees) between a straight line and the inferred curve before the angles are not considered equal
         /// </summary>
         public double MaxTangentLineAngleInDegrees = 0.25;
+        /// <summary>
+        /// The number of time larger a overlapping straight line must be to be considered
+        /// </summary>
+        public double TangentOverlapScaleFactor = 3;
+        public int PerpendicularTolerance = 15;
 
         private CurveByInferenceSettings()
         {
