@@ -364,8 +364,8 @@ namespace ParcelFabricCurveByInference
         private bool evaluateJunctions(InferredCurve curve, List<RelatedLine> tangentLines)
         {
             //count the perpendicular lines at the start and end points of the line
-            List<RelatedLine> startPerpendicular = tangentLines.Where(t => t.isAtStart && t.DeltaAngle > 90 - 15 && t.DeltaAngle < 90 + 15).ToList();
-            List<RelatedLine> endPerpendicular = tangentLines.Where(t => t.isAtEnd && t.DeltaAngle > 90 - 15 && t.DeltaAngle < 90 + 15).ToList();
+            List<RelatedLine> startPerpendicular = tangentLines.Where(t => t.isAtStart && t.DeltaAngle > 90 - CurveByInferenceSettings.Instance.PerpendicularTolerance && t.DeltaAngle < 90 + CurveByInferenceSettings.Instance.PerpendicularTolerance).ToList();
+            List<RelatedLine> endPerpendicular = tangentLines.Where(t => t.isAtEnd && t.DeltaAngle > 90 - CurveByInferenceSettings.Instance.PerpendicularTolerance && t.DeltaAngle < 90 + CurveByInferenceSettings.Instance.PerpendicularTolerance).ToList();
 
             //if there aren't any perpendicular lines
             if (startPerpendicular.Count == 0 && endPerpendicular.Count == 0)
@@ -1403,7 +1403,7 @@ namespace ParcelFabricCurveByInference
                         Marshal.FinalReleaseComObject(pFeatCursLines);
                         return CurveInfoFromNeighbours;
                     }
-                    else if (foundPolyLine.Length > inPolycurve.Length * 3)
+                    else if (foundPolyLine.Length > inPolycurve.Length * CurveByInferenceSettings.Instance.TangentOverlapScaleFactor)
                     {
                         //straight line
                         CurveInfoFromNeighbours.Clear();
