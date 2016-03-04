@@ -74,7 +74,7 @@ namespace ParcelFabricCurveByInferenceTest
             int idxRADIUS = featureClass.Fields.FindField("Radius");
             
             CurveByInference curveByInference = new CurveByInference() { messageBox = new MyMessageBox() };
-            curveByInference.FindCurves("test", featureClass, null, whereClause, idxRADIUS, idxCENTERPTID, idxParcelIDFld, new myProgessor());
+            curveByInference.FindCurves("test", featureClass, null, whereClause, new myProgessor());
 
             Console.WriteLine(Framework.GenerateConstructorStatment(curveByInference.Curves));
 
@@ -104,12 +104,8 @@ namespace ParcelFabricCurveByInferenceTest
             
             IFeatureClass featureClass = featuredataset.get_ClassByName(LineFC);
             
-            int idxParcelIDFld = featureClass.Fields.FindField("ParcelID");
-            int idxCENTERPTID = featureClass.Fields.FindField("CenterPointID");
-            int idxRADIUS = featureClass.Fields.FindField("Radius");
-            
             CurveByInference curveByInference = new CurveByInference() { messageBox = new MyMessageBox() };
-            curveByInference.FindCurves("test", featureClass, null, whereClause, idxRADIUS, idxCENTERPTID, idxParcelIDFld, new myProgessor());
+            curveByInference.FindCurves("test", featureClass, null, whereClause, new myProgessor());
 
             Console.WriteLine(Framework.GenerateConstructorStatment(curveByInference.Curves));
             return curveByInference;

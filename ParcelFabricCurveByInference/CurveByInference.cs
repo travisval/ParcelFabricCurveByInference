@@ -84,17 +84,7 @@ namespace ParcelFabricCurveByInference
 
                 IFeatureLayer CFLineLayer = CFLayer.get_CadastralSubLayer(esriCadastralFabricRenderer.esriCFRLines);
                 IFeatureLayer CFParcelLayer = CFLayer.get_CadastralSubLayer(esriCadastralFabricRenderer.esriCFRParcels);
-
-                //Verify that the needed fields are present                                
-                int idxParcelIDFld = CFLineLayer.FeatureClass.Fields.FindField("ParcelID");
-                int idxCENTERPTID = CFLineLayer.FeatureClass.Fields.FindField("CenterPointID");
-                int idxRADIUS = CFLineLayer.FeatureClass.Fields.FindField("Radius");
-                if (idxParcelIDFld == -1 || idxCENTERPTID == -1 || idxRADIUS == -1)
-                {
-                    messageBox.Show("One or more of the following fields are missing (ParcelID, CenterPointID, Radius).");
-                    return;
-                }
-                    
+                                    
                 //for each CF line feature class 
                 IFeatureSelection CFLineFeatureSelection = (IFeatureSelection)CFLineLayer;
                 IFeatureSelection CFParcelFeatureSelection = (IFeatureSelection)CFParcelLayer;
@@ -157,7 +147,7 @@ namespace ParcelFabricCurveByInference
                 }
 
                     
-                FindCurves(CFLineLayer.Name, CFLineLayer.FeatureClass, selectionSet, whereClause, idxRADIUS, idxCENTERPTID, idxParcelIDFld, progressor);
+                FindCurves(CFLineLayer.Name, CFLineLayer.FeatureClass, selectionSet, whereClause, progressor);
                 if (Curves.Count == 0)
                 {
                     messageBox.Show("No inferred curved lines found.");
@@ -230,8 +220,15 @@ namespace ParcelFabricCurveByInference
             }
         }
 
-        public void FindCurves(String Name, IFeatureClass pFabricLinesFC, ISelectionSet selSet, string whereClause, int idxRADIUS, int idxCENTERPTID, int idxParcelIDFld, myProgessor progressor)
+        public void FindCurves(String Name, IFeatureClass pFabricLinesFC, ISelectionSet selSet, string whereClause, myProgessor progressor)
         {
+            CurveByInferenceSettings.FieldPositions positions = new CurveByInferenceSettings.FieldPositions((ITable)pFabricLinesFC);
+            if (!positions.ValidCheckFields)
+            {
+                messageBox.Show(string.Format("One or more of the following fields are missing ({0}, {1})", CurveByInferenceSettings.Instance.RadiusFieldName, CurveByInferenceSettings.Instance.CenterpointIDFieldName));
+            }
+
+
             IQueryFilter qFilter = new QueryFilter();
             if (String.IsNullOrEmpty(whereClause))
             {
@@ -300,7 +297,7 @@ namespace ParcelFabricCurveByInference
 
                     //query near lines
                     List<RelatedLine> tangentLines;
-                    List<RelatedCurve> sCurveInfoFromNeighbours = GetTangentCurveMatchFeatures(pFabricLinesFC, pLineFeat, (IPolycurve)pGeom, "", idxRADIUS, idxCENTERPTID, pSeg.Length, out tangentLines);
+                    List<RelatedCurve> sCurveInfoFromNeighbours = GetTangentCurveMatchFeatures(pFabricLinesFC, pLineFeat, (IPolycurve)pGeom, "", positions.RadiusFieldIdx, positions.CenterpointIDFieldIdx, pSeg.Length, out tangentLines);
                                 
                     if(sCurveInfoFromNeighbours.Count > 0)
                     //if (HasTangentCurveMatchFeatures(pFabricLinesFC, (IPolycurve)pGeom, "", pSeg.Length, out iFoundTangent, ref sCurveInfoFromNeighbours))
@@ -352,7 +349,7 @@ namespace ParcelFabricCurveByInference
                             //    affectedParcels.Add();
 
                             //cache the parcel so it can be looked up later
-                            curve.Parcel = (int)pLineFeat.get_Value(idxParcelIDFld);
+                            curve.Parcel = (int)pLineFeat.get_Value(positions.ParcelIDFieldIdx);
                         }
                     }
                 }
@@ -544,8 +541,6 @@ namespace ParcelFabricCurveByInference
             ICadastralFabricSchemaEdit2 pSchemaEd = (ICadastralFabricSchemaEdit2)pCadFabric;
             pSchemaEd.ReleaseReadOnlyFields((ITable)pFabricLinesFC, esriCadastralFabricTable.esriCFTLines); //release for edits
 
-            
-
             // m_pEd.StartOperation();
 
             updateValues(updateCurves, progressor, pFabricLinesFC, bIsUnVersioned, false);
@@ -570,7 +565,7 @@ namespace ParcelFabricCurveByInference
             pRegenFabric.RegeneratorBitmask = 7;
             pRegenFabric.RegenerateParcels(parcelFIDs, false, progressor.cancelTracker);
 
-            updateValues(updateCurves, progressor, pFabricLinesFC, bIsUnVersioned, true);
+            //updateValues(updateCurves, progressor, pFabricLinesFC, bIsUnVersioned, true);
 
             if (m_pEd != null)
             {
@@ -807,20 +802,26 @@ namespace ParcelFabricCurveByInference
         {
             try
             {
+                CurveByInferenceSettings.FieldPositions positions = new CurveByInferenceSettings.FieldPositions(LineTable);
+
                 ITableWrite pTableWr = (ITableWrite)LineTable;//used for unversioned table
                 IRow pLineFeat = null;
                 ICursor pLineCurs = null;
-
+                IRowBuffer buffer = LineTable.CreateRowBuffer();
+                ICursor pRadialCur = null;
                 if (Unversioned)
+                {
                     pLineCurs = pTableWr.UpdateRows(QueryFilter, false);
+                    pRadialCur = pTableWr.InsertRows(false);
+                }
                 else
+                {
                     pLineCurs = LineTable.Update(QueryFilter, false);
+                    pRadialCur = LineTable.Insert(false);
+                }
+
 
                 pLineFeat = null;
-
-                Int32 iCtrPointIDX = pLineCurs.Fields.FindField("CENTERPOINTID");
-                Int32 iRadiusIDX = pLineCurs.Fields.FindField("RADIUS");
-                Int32 iArcLengthIDX = pLineCurs.Fields.FindField("ARCLENGTH");
 
                 while ((pLineFeat = pLineCurs.NextRow()) != null)
                 {
@@ -831,16 +832,17 @@ namespace ParcelFabricCurveByInference
                     
                     InferredCurve curveInfo = CurveLookup[pLineFeat.OID];
 
-                    pLineFeat.set_Value(iRadiusIDX, curveInfo.InferredRadius);
-                    pLineFeat.set_Value(iCtrPointIDX, curveInfo.InferredCenterpointID);
+                    pLineFeat.set_Value(positions.RadiusFieldIdx, curveInfo.InferredRadius);
+                    pLineFeat.set_Value(positions.CenterpointIDFieldIdx, curveInfo.InferredCenterpointID);
                     IFeature feature = pLineFeat as IFeature;
+                    double length = 0;
                     if (feature != null)
                     {
-                        IPolyline polycurve = feature.ShapeCopy as IPolyline;
-                        if (polycurve != null)
+                        IPolyline polyline = feature.ShapeCopy as IPolyline;
+                        if (polyline != null)
                         {
-                            double length = ((IProximityOperator)polycurve.FromPoint).ReturnDistance(polycurve.ToPoint);
-                            pLineFeat.set_Value(iArcLengthIDX, length);
+                            length = ((IProximityOperator)polyline.FromPoint).ReturnDistance(polyline.ToPoint);
+                            pLineFeat.set_Value(positions.ArcLengthFieldIdx, length);
                         }
                     }
 
@@ -849,18 +851,80 @@ namespace ParcelFabricCurveByInference
                     else
                         pLineFeat.Store();
 
+
+                    //IQueryDef qDef = featureWorkspace.CreateQueryDef();
+                    //qDef.SubFields = "max(SEQUENCE) as MAXVALUE";
+                    //qDef.Tables = ((IDataset)LineTable).FullName.NameString;
+                    //qDef.WhereClause = String.Format("PARCELID = {0}", pLineFeat.get_Value(iParcelIDIDX));
+                    //ICursor maxSequenceCur = qDef.Evaluate();
+
+                    //IRow maxRow = maxSequenceCur.NextRow();
+                    //if(maxSequenceCur.NextRow() != null)
+                    //    throw new Exception("Multiple rows returned by max query");
+                    //int maxSequence = (int)maxRow.get_Value(maxRow.Fields.FindField("MAXVALUE"));
+
+
+
+                    ICursor cursor = (ICursor)LineTable.Search(new QueryFilter() { WhereClause = String.Format("PARCELID = {0}", curveInfo.Parcel) }, false);
+                    IDataStatistics dataStatistics = new DataStatisticsClass()
+                        {
+                            Field = "SEQUENCE",
+                            Cursor = cursor
+                        };
+                    int maxSequence = (int)Math.Round(dataStatistics.Statistics.Maximum);
+                    
+                    double featureBearing = (double)pLineFeat.get_Value(positions.BearingFieldIdx);
+
+                    //half the delta of the proposed curve would be:
+                    double halfdelta = toDegrees(Math.Asin(length / 2 / curveInfo.InferredRadius.Value));
+                    double perpendicular = (curveInfo.InferredRadius.Value > 0) ? featureBearing + 90 : featureBearing - 90;
+                    if (perpendicular > 360)
+                        perpendicular = perpendicular - 360;
+                    else if (perpendicular < 0)
+                        perpendicular = perpendicular + 360;
+
+                    for (int i = 0; i < 2; i++)
+                    {
+                        messageBox.Show(String.Format("creating radial {0} for OID {1}", i, pLineFeat.OID));
+
+                        buffer.set_Value(positions.ParcelIDFieldIdx, curveInfo.Parcel);
+                        buffer.set_Value(positions.ToPointFieldIdx, curveInfo.InferredCenterpointID);
+                        buffer.set_Value(positions.CategoryFieldIdx, 4);
+                        buffer.set_Value(positions.SequenceFieldIdx, ++maxSequence);
+                        buffer.set_Value(positions.TypeFieldIdx, 0);
+                        buffer.set_Value(positions.DistanceFieldIdx, curveInfo.InferredRadius);
+                        buffer.set_Value(positions.HistoricalFieldIdx, 0);
+                        buffer.set_Value(positions.LineParametersFieldIdx, 0);
+                        buffer.set_Value(positions.DensifyTypeIdx, 0);
+                        buffer.set_Value(positions.SystemStartDateFieldIdx, pLineFeat.get_Value(positions.SystemStartDateFieldIdx));
+
+                        if (i == 0) // startpoing
+                        {
+                            buffer.set_Value(positions.FromPointFieldIdx, pLineFeat.get_Value(positions.FromPointFieldIdx));
+                            buffer.set_Value(positions.BearingFieldIdx, perpendicular + halfdelta);
+                        }
+                        else  //endpoint
+                        {
+                            buffer.set_Value(positions.FromPointFieldIdx, pLineFeat.get_Value(positions.ToPointFieldIdx));
+                            buffer.set_Value(positions.BearingFieldIdx, perpendicular - halfdelta);
+                        }
+
+                        pRadialCur.InsertRow(buffer);
+                    }
+
                     Marshal.ReleaseComObject(pLineFeat); //garbage collection
                 }
                 Marshal.ReleaseComObject(pLineCurs); //garbage collection
+                Marshal.ReleaseComObject(buffer);
+                Marshal.ReleaseComObject(pRadialCur);
                 return true;
             }
             catch (COMException ex)
             {
-                messageBox.Show("Problem updating circular arc: " + Convert.ToString(ex.ErrorCode));
+                messageBox.Show(String.Format("Problem updating circular arc: {0} ({1})", ex.Message, ex.ErrorCode));
                 return false;
             }
         }
-
         #endregion
 
         #region Inference
