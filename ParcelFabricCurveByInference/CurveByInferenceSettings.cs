@@ -52,6 +52,7 @@ namespace ParcelFabricCurveByInference
         /// </summary>
         public double TangentOverlapScaleFactor = 3;
         public int PerpendicularTolerance = 15;
+        public double MaxRadiusDifference = 0.5;
         
         public string RadiusFieldName { get; set; }
         public string CenterpointIDFieldName { get; set; }
@@ -181,6 +182,7 @@ namespace ParcelFabricCurveByInference
                 return instance;
             }
         }
+
 
     }
 }
