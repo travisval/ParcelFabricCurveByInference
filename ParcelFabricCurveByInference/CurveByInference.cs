@@ -885,7 +885,7 @@ namespace ParcelFabricCurveByInference
 
                     for (int i = 0; i < 2; i++)
                     {
-                        messageBox.Show(String.Format("creating radial {0} for OID {1}", i, pLineFeat.OID));
+                        //messageBox.Show(String.Format("creating radial {0} for OID {1}", i, pLineFeat.OID));
 
                         buffer.set_Value(positions.ParcelIDFieldIdx, curveInfo.Parcel);
                         buffer.set_Value(positions.ToPointFieldIdx, curveInfo.InferredCenterpointID);
