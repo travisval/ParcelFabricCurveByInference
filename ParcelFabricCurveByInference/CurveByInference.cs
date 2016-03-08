@@ -531,7 +531,7 @@ namespace ParcelFabricCurveByInference
 
             // m_pEd.StartOperation();
 
-            updateValues(updateCurves, progressor, pFabricLinesFC, bIsUnVersioned, false);
+            updateValues(updateCurves, progressor, pFabricLinesFC, bIsUnVersioned);
 
             ICadastralFabricRegeneration pRegenFabric = new CadastralFabricRegenerator();
             #region regenerator enum
@@ -549,11 +549,9 @@ namespace ParcelFabricCurveByInference
             // (equivalent to passing in regeneratorBitmask = 1)
             #endregion
 
-            pRegenFabric.CadastralFabric = pCadFabric;
-            pRegenFabric.RegeneratorBitmask = 7;
-            pRegenFabric.RegenerateParcels(parcelFIDs, false, progressor.cancelTracker);
-
-            //updateValues(updateCurves, progressor, pFabricLinesFC, bIsUnVersioned, true);
+            //pRegenFabric.CadastralFabric = pCadFabric;
+            //pRegenFabric.RegeneratorBitmask = 7;
+            //pRegenFabric.RegenerateParcels(parcelFIDs, false, progressor.cancelTracker);
 
             if (m_pEd != null)
             {
@@ -683,7 +681,7 @@ namespace ParcelFabricCurveByInference
         //    return;
         //}
 
-        public bool StartEditing(IWorkspace TheWorkspace, bool IsUnversioned)   // Start EditSession + create EditOperation
+        private bool StartEditing(IWorkspace TheWorkspace, bool IsUnversioned)   // Start EditSession + create EditOperation
         {
             bool IsFileBasedGDB =
               (!(TheWorkspace.WorkspaceFactory.WorkspaceType == esriWorkspaceType.esriRemoteDatabaseWorkspace));
@@ -746,7 +744,7 @@ namespace ParcelFabricCurveByInference
             return true;
         }
 
-        public List<string> InClauseFromOIDsList(IList<InferredCurve> ListOfOids, int TokenMax)
+        private List<string> InClauseFromOIDsList(IList<InferredCurve> ListOfOids, int TokenMax)
         {
             List<string> InClause = new List<string>();
             int iCnt = 0;
@@ -769,8 +767,9 @@ namespace ParcelFabricCurveByInference
             return InClause;
         }
 
-        public void updateValues(IEnumerable<InferredCurve> updateCurves, myProgessor progressor, IFeatureClass pFabricLinesFC, bool bIsUnVersioned, bool UpdateArcLengthOnly)
+        private void updateValues(IEnumerable<InferredCurve> updateCurves, myProgessor progressor, IFeatureClass pFabricLinesFC, bool bIsUnVersioned)
         {
+            Dictionary<int, int> MaxSequenceCache = new Dictionary<int, int>();
             IQueryFilter m_pQF = new QueryFilter();
 
             //Slice the list into sets that will fit into an in list
@@ -782,42 +781,33 @@ namespace ParcelFabricCurveByInference
                 if (!progressor.Continue())
                     return;
                 m_pQF.WhereClause = String.Format("{0} IN ({1})", pFabricLinesFC.OIDFieldName, String.Join(",", (from oid in curvesSlice.Keys select oid.ToString()).ToArray()));
-                UpdateCircularArcValues((ITable)pFabricLinesFC, m_pQF, bIsUnVersioned, curvesSlice, progressor, UpdateArcLengthOnly);
+                UpdateCircularArcValues((ITable)pFabricLinesFC, m_pQF, bIsUnVersioned, curvesSlice, progressor, MaxSequenceCache);
             }
         }
 
-        public bool UpdateCircularArcValues(ITable LineTable, IQueryFilter QueryFilter, bool Unversioned, IDictionary<int, InferredCurve> CurveLookup, myProgessor progressor, bool UpdateArcLengthOnly)
+        private bool UpdateCircularArcValues(ITable LineTable, IQueryFilter QueryFilter, bool Unversioned, IDictionary<int, InferredCurve> CurveLookup, myProgessor progressor, Dictionary<int, int> MaxSequenceCache)
         {
+            IRow pLineFeat = null;
+            IRowBuffer buffer = null;
+            ICursor pLineCurs = null;
+            ICursor pRadialCur = null;
+            ICursor maxCursor = null;
+            IDataStatistics dataStatistics = null;
             try
             {
                 CurveByInferenceSettings.FieldPositions positions = new CurveByInferenceSettings.FieldPositions(LineTable);
 
-                ITableWrite pTableWr = (ITableWrite)LineTable;//used for unversioned table
-                IRow pLineFeat = null;
-                ICursor pLineCurs = null;
-                IRowBuffer buffer = LineTable.CreateRowBuffer();
-                ICursor pRadialCur = null;
-                if (Unversioned)
-                {
-                    pLineCurs = pTableWr.UpdateRows(QueryFilter, false);
-                    pRadialCur = pTableWr.InsertRows(false);
-                }
-                else
-                {
-                    pLineCurs = LineTable.Update(QueryFilter, false);
-                    pRadialCur = LineTable.Insert(false);
-                }
-
-
-                pLineFeat = null;
+                buffer = LineTable.CreateRowBuffer();
+                pLineCurs = LineTable.Update(QueryFilter, false);
+                pRadialCur = LineTable.Insert(false);
 
                 while ((pLineFeat = pLineCurs.NextRow()) != null)
                 {
-                    //loop through all of the given lines, and update centerpoint ids and the Radius values
+                    //loop through all of the given lines, and update centerpoint ids, radius, and arc length values
                     if (!progressor.Continue())
                         return false;
                     progressor.Step();
-                    
+
                     InferredCurve curveInfo = CurveLookup[pLineFeat.OID];
 
                     pLineFeat.set_Value(positions.RadiusFieldIdx, curveInfo.InferredRadius);
@@ -831,6 +821,7 @@ namespace ParcelFabricCurveByInference
                         {
                             length = ((IProximityOperator)polyline.FromPoint).ReturnDistance(polyline.ToPoint);
                             pLineFeat.set_Value(positions.ArcLengthFieldIdx, length);
+                            Marshal.ReleaseComObject(polyline);
                         }
                     }
 
@@ -839,32 +830,42 @@ namespace ParcelFabricCurveByInference
                     else
                         pLineFeat.Store();
 
+                    //fine the max sequence value 
+                    int maxSequence = -1;
+                    if (MaxSequenceCache.ContainsKey(curveInfo.Parcel))
+                    {
+                        maxSequence = MaxSequenceCache[curveInfo.Parcel];
+                    }
+                    else
+                    {
+                        maxCursor = (ICursor)LineTable.Search(new QueryFilter() {
+                            SubFields = String.Format("{0}, {1}, {2}", LineTable.OIDFieldName, CurveByInferenceSettings.Instance.SequenceFieldName, CurveByInferenceSettings.Instance.ParcelIDFieldName),
+                            WhereClause = String.Format("{0} = {1}", CurveByInferenceSettings.Instance.ParcelIDFieldName, curveInfo.Parcel) }, true);
 
-                    //IQueryDef qDef = featureWorkspace.CreateQueryDef();
-                    //qDef.SubFields = "max(SEQUENCE) as MAXVALUE";
-                    //qDef.Tables = ((IDataset)LineTable).FullName.NameString;
-                    //qDef.WhereClause = String.Format("PARCELID = {0}", pLineFeat.get_Value(iParcelIDIDX));
-                    //ICursor maxSequenceCur = qDef.Evaluate();
+                        int seqenceIdx = maxCursor.Fields.FindField(CurveByInferenceSettings.Instance.SequenceFieldName);
 
-                    //IRow maxRow = maxSequenceCur.NextRow();
-                    //if(maxSequenceCur.NextRow() != null)
-                    //    throw new Exception("Multiple rows returned by max query");
-                    //int maxSequence = (int)maxRow.get_Value(maxRow.Fields.FindField("MAXVALUE"));
-
-
-
-                    ICursor cursor = (ICursor)LineTable.Search(new QueryFilter() { WhereClause = String.Format("PARCELID = {0}", curveInfo.Parcel) }, false);
-                    IDataStatistics dataStatistics = new DataStatisticsClass()
+                        IRow maxFeat = null;
+                        while ((maxFeat = maxCursor.NextRow()) != null)
                         {
-                            Field = "SEQUENCE",
-                            Cursor = cursor
-                        };
-                    int maxSequence = (int)Math.Round(dataStatistics.Statistics.Maximum);
-                    
+                            maxSequence = Math.Max((int)maxFeat.get_Value(seqenceIdx), maxSequence);
+                            Marshal.ReleaseComObject(maxFeat);
+                        }
+                        Marshal.ReleaseComObject(maxCursor);
+
+                        MaxSequenceCache.Add(curveInfo.Parcel, maxSequence);
+                        dataStatistics = null;
+                        maxCursor = null;                        
+                    }
+                    if (maxSequence <= 0)
+                        throw new Exception("Failed to find max sequence value");
+
+                    //the chord bearing
                     double featureBearing = (double)pLineFeat.get_Value(positions.BearingFieldIdx);
 
                     //half the delta of the proposed curve would be:
                     double halfdelta = toDegrees(Math.Asin(length / 2 / curveInfo.InferredRadius.Value));
+
+                    //perpendicular to the chord
                     double perpendicular = (curveInfo.InferredRadius.Value > 0) ? featureBearing + 90 : featureBearing - 90;
                     if (perpendicular > 360)
                         perpendicular = perpendicular - 360;
@@ -873,8 +874,6 @@ namespace ParcelFabricCurveByInference
 
                     for (int i = 0; i < 2; i++)
                     {
-                        messageBox.Show(String.Format("creating radial {0} for OID {1}", i, pLineFeat.OID));
-
                         buffer.set_Value(positions.ParcelIDFieldIdx, curveInfo.Parcel);
                         buffer.set_Value(positions.ToPointFieldIdx, curveInfo.InferredCenterpointID);
                         buffer.set_Value(positions.CategoryFieldIdx, 4);
@@ -900,17 +899,25 @@ namespace ParcelFabricCurveByInference
                         pRadialCur.InsertRow(buffer);
                     }
 
-                    Marshal.ReleaseComObject(pLineFeat); //garbage collection
+                    MaxSequenceCache[curveInfo.Parcel] = maxSequence; 
+                    Marshal.ReleaseComObject(pLineFeat);
                 }
-                Marshal.ReleaseComObject(pLineCurs); //garbage collection
-                Marshal.ReleaseComObject(buffer);
-                Marshal.ReleaseComObject(pRadialCur);
+
                 return true;
             }
             catch (COMException ex)
             {
                 messageBox.Show(String.Format("Problem updating circular arc: {0} ({1})", ex.Message, ex.ErrorCode));
                 return false;
+            }
+            finally
+            {
+                if(pLineCurs != null) Marshal.ReleaseComObject(pLineCurs);
+                if(buffer != null) Marshal.ReleaseComObject(buffer);
+                if(pRadialCur != null) Marshal.ReleaseComObject(pRadialCur);
+
+                if(dataStatistics != null) Marshal.ReleaseComObject(dataStatistics);
+                if (maxCursor != null) Marshal.ReleaseComObject(maxCursor);
             }
         }
         #endregion
@@ -1096,7 +1103,7 @@ namespace ParcelFabricCurveByInference
 
             //search for records that intersect these perpendicular geometries
             IQueryFilter filter = new SpatialFilter();
-            filter.SubFields = String.Format("{0}, {1}, {2}", FeatureClass.OIDFieldName, CurveByInferenceSettings.Instance.RadiusFieldName, CurveByInferenceSettings.Instance.CenterpointIDFieldName);
+            filter.SubFields = String.Format("{0}, {1}, {2}, {3}", FeatureClass.OIDFieldName, CurveByInferenceSettings.Instance.RadiusFieldName, CurveByInferenceSettings.Instance.CenterpointIDFieldName, FeatureClass.ShapeFieldName);
             ISpatialFilter spatialFilter = (ISpatialFilter)filter;
             
             //Can't add any additional filtering on centerpointid and radius field because the straight lines are needed
