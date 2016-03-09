@@ -16,8 +16,8 @@ namespace ParcelFabricCurveByInferenceTest
         static bool AOInitilialized = false;
         static ESRI.ArcGIS.esriSystem.IAoInitialize aoInitialize;
 
-        static string baseGeodatabasePath;
-        static string baseDevGeodatabasePath;
+        public static string baseGeodatabasePath;
+        public static string baseDevGeodatabasePath;
         static IWorkspace workspace;
        
         [AssemblyInitialize()]
@@ -49,7 +49,7 @@ namespace ParcelFabricCurveByInferenceTest
             //    aoInitialize.Shutdown();
         }
 
-        public static CurveByInference RunTest(String FeatureDatasetName, String CadastralFabricName, string whereClause = null, string OrderBy = null, String GDBPath = null)
+        public static CurveByInference RunTest(String FeatureDatasetName, String CadastralFabricName, string whereClause = null, string OrderBy = null, String GDBPath = null, bool withUpdate = false)
         {
             if (String.IsNullOrEmpty(GDBPath))
                 GDBPath = baseGeodatabasePath;
@@ -74,9 +74,15 @@ namespace ParcelFabricCurveByInferenceTest
             int idxRADIUS = featureClass.Fields.FindField("Radius");
             
             CurveByInference curveByInference = new CurveByInference() { messageBox = new MyMessageBox() };
-            curveByInference.FindCurves("test", featureClass, null, whereClause, idxRADIUS, idxCENTERPTID, idxParcelIDFld, new myProgessor());
+            curveByInference.FindCurves("test", featureClass, null, whereClause, new myProgessor());
 
             Console.WriteLine(Framework.GenerateConstructorStatment(curveByInference.Curves));
+
+            if(withUpdate)
+            {
+                curveByInference.UpdateCurves(cadFabric, featureClass, curveByInference.Curves, new myProgessor());
+            }
+
             return curveByInference;
         }
 
@@ -98,12 +104,8 @@ namespace ParcelFabricCurveByInferenceTest
             
             IFeatureClass featureClass = featuredataset.get_ClassByName(LineFC);
             
-            int idxParcelIDFld = featureClass.Fields.FindField("ParcelID");
-            int idxCENTERPTID = featureClass.Fields.FindField("CenterPointID");
-            int idxRADIUS = featureClass.Fields.FindField("Radius");
-            
             CurveByInference curveByInference = new CurveByInference() { messageBox = new MyMessageBox() };
-            curveByInference.FindCurves("test", featureClass, null, whereClause, idxRADIUS, idxCENTERPTID, idxParcelIDFld, new myProgessor());
+            curveByInference.FindCurves("test", featureClass, null, whereClause, new myProgessor());
 
             Console.WriteLine(Framework.GenerateConstructorStatment(curveByInference.Curves));
             return curveByInference;
@@ -430,7 +432,7 @@ namespace ParcelFabricCurveByInferenceTest
         static string CreateCurveItem =     "                new RelatedCurve({0}, {1}, {2}, CurveByInference.RelativeOrientation.{3})";
         static string ParallelCreateClose = "          }," + Environment.NewLine;
         static string LineCreate =          "          TangentLines = new List<RelatedLine>() {" + Environment.NewLine;
-        static string CreateLineItem =      "               new RelatedLine({0}, {1}, CurveByInference.RelativeOrientation.{2})";
+        static string CreateLineItem =      "               new RelatedLine({0}, {1}, {2}, CurveByInference.RelativeOrientation.{3})";
         static string LineCreateClose =     "          }}";
 
         static string ListJoin =            "," + Environment.NewLine;
@@ -449,7 +451,7 @@ namespace ParcelFabricCurveByInferenceTest
             strBuilder.Append(String.Join(ListJoin, (from r in curve.ParallelCurves select String.Format(CreateCurveItem, r.ObjectID, r.Radius, r.CenterpointID, r.Orientation)).ToArray()));
             strBuilder.Append(ParallelCreateClose);
             strBuilder.Append(LineCreate);
-            strBuilder.Append(String.Join(ListJoin, (from r in curve.TangentLines select String.Format(CreateLineItem, r.ObjectID, r.Angle, r.Orientation)).ToArray()));
+            strBuilder.Append(String.Join(ListJoin, (from r in curve.TangentLines select String.Format(CreateLineItem, r.ObjectID, r.Angle, r.DeltaAngle, r.Orientation)).ToArray()));
             strBuilder.Append(Environment.NewLine + LineCreateClose);
 
             return strBuilder.ToString();

@@ -10,6 +10,65 @@ namespace ParcelFabricCurveByInferenceTest
     [TestClass]
     public class Development
     {
+        #region Junction
+
+        //tests confirming a radius with the use of a junction perpendicular line
+        [TestMethod]
+        public void Junction_Comfirmed()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 114");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { 
+                new InferredCurve(114, "test", new List<RelatedCurve>() {
+                    new RelatedCurve(113, 707.106758, 3, CurveByInference.RelativeOrientation.From_To)     }){
+                    InferredRadius = 707.106758, InferredCenterpointID = 3, 
+                    ParallelCurves = new List<RelatedCurve>() {
+                    },
+                    TangentLines = new List<RelatedLine>() {
+                        new RelatedLine(121, -134.999994271838, 89.9590509563687, CurveByInference.RelativeOrientation.From_To)
+                    }}};
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+        [TestMethod]
+        public void Junction_Comfirmed_Reverse()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 116");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { 
+                 new InferredCurve(116, "test", new List<RelatedCurve>() {
+                      new RelatedCurve(113, -707.106758, 3, CurveByInference.RelativeOrientation.To_To)     }){
+                      InferredRadius = -707.106758, InferredCenterpointID = 3, 
+                      ParallelCurves = new List<RelatedCurve>() {
+                      },
+                      TangentLines = new List<RelatedLine>() {
+                           new RelatedLine(121, 45.0000057281621, 89.9549587045525, CurveByInference.RelativeOrientation.To_To)
+                      }}};
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+
+        [TestMethod]
+        public void Junction_Reject()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 125");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { };
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+        [TestMethod]
+        public void Junction_Reject_Reverse()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 128");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { };
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+
+        #endregion
+
         #region Curve with Tangent
 
         //tests confirming a radius with straight line tanget (running perfectly east - west)
@@ -25,7 +84,7 @@ namespace ParcelFabricCurveByInferenceTest
                   ParallelCurves = new List<RelatedCurve>() {
                   },
                   TangentLines = new List<RelatedLine>() {
-                       new RelatedLine(7, Framework.toDegrees(3.14159265358979), CurveByInference.RelativeOrientation.From_To)
+                       new RelatedLine(7, 180, 0, CurveByInference.RelativeOrientation.From_To)
             }}};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
@@ -42,7 +101,7 @@ namespace ParcelFabricCurveByInferenceTest
                       ParallelCurves = new List<RelatedCurve>() {
                       },
                       TangentLines = new List<RelatedLine>() {
-                           new RelatedLine(7, 0, CurveByInference.RelativeOrientation.To_To)
+                            new RelatedLine(7, 0, 0, CurveByInference.RelativeOrientation.To_To)
                       }}};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
@@ -61,7 +120,7 @@ namespace ParcelFabricCurveByInferenceTest
                       ParallelCurves = new List<RelatedCurve>() {
                       },
                       TangentLines = new List<RelatedLine>() {
-                           new RelatedLine(14, Framework.toDegrees(-1.12077372905881), CurveByInference.RelativeOrientation.To_To)
+                           new RelatedLine(14, -64.2418875563753, 0.0262830909297305, CurveByInference.RelativeOrientation.To_To)
                       }}};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
@@ -78,7 +137,7 @@ namespace ParcelFabricCurveByInferenceTest
                       ParallelCurves = new List<RelatedCurve>() {
                       },
                       TangentLines = new List<RelatedLine>() {
-                           new RelatedLine(14, Framework.toDegrees(2.02081892453098), CurveByInference.RelativeOrientation.From_To)
+                           new RelatedLine(14, 115.758112443625, 0.0262830909435974, CurveByInference.RelativeOrientation.From_To)
                       }}};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
@@ -97,7 +156,7 @@ namespace ParcelFabricCurveByInferenceTest
                     ParallelCurves = new List<RelatedCurve>() {
                     },
                     TangentLines = new List<RelatedLine>() {
-                        new RelatedLine(22, Framework.toDegrees(1.5707963267949), CurveByInference.RelativeOrientation.To_From)
+                        new RelatedLine(22, 90, 0, CurveByInference.RelativeOrientation.To_From)
                     }}};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
@@ -114,7 +173,7 @@ namespace ParcelFabricCurveByInferenceTest
                       ParallelCurves = new List<RelatedCurve>() {
                       },
                       TangentLines = new List<RelatedLine>() {
-                           new RelatedLine(22, Framework.toDegrees(-1.5707963267949), CurveByInference.RelativeOrientation.From_From)
+                           new RelatedLine(22, -90, 0, CurveByInference.RelativeOrientation.From_From)
                       }}};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
@@ -132,15 +191,14 @@ namespace ParcelFabricCurveByInferenceTest
                       ParallelCurves = new List<RelatedCurve>() {
                       },
                       TangentLines = new List<RelatedLine>() {
-                           new RelatedLine(37, Framework.toDegrees(-2.35619449019234), CurveByInference.RelativeOrientation.To_To),
-                           //new RelatedLine(38, Framework.toDegrees(-0.785398163397448), CurveByInference.RelativeOrientation.To_To),
-                           new RelatedLine(41, Framework.toDegrees(0.785398163397448), CurveByInference.RelativeOrientation.To_From),
-                           new RelatedLine(57, Framework.toDegrees(0.785398163397448), CurveByInference.RelativeOrientation.To_To),
-                           new RelatedLine(58, Framework.toDegrees(-2.35619449019234), CurveByInference.RelativeOrientation.To_From),
-                           //new RelatedLine(59, Framework.toDegrees(-0.785398163397448), CurveByInference.RelativeOrientation.To_From)
+                           new RelatedLine(37, -135, 89.9590452282066, CurveByInference.RelativeOrientation.To_To),
+                           new RelatedLine(41, 45, 90.0409547717934, CurveByInference.RelativeOrientation.To_From),
+                           new RelatedLine(57, 45, 90.0409547717934, CurveByInference.RelativeOrientation.To_To),
+                           new RelatedLine(58, -135, 89.9590452282066, CurveByInference.RelativeOrientation.To_From)
                       }}};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+
         }
         [TestMethod]
         public void Tangent_Confirmer_40_Reverse()
@@ -153,17 +211,168 @@ namespace ParcelFabricCurveByInferenceTest
                     ParallelCurves = new List<RelatedCurve>() {
                     },
                     TangentLines = new List<RelatedLine>() {
-                        new RelatedLine(37, Framework.toDegrees(0.785398163397448), CurveByInference.RelativeOrientation.From_To),
-                        //new RelatedLine(38, Framework.toDegrees(2.35619449019234), CurveByInference.RelativeOrientation.From_To),
-                        new RelatedLine(41, Framework.toDegrees(-2.35619449019234), CurveByInference.RelativeOrientation.From_From),
-                        new RelatedLine(57, Framework.toDegrees(-2.35619449019234), CurveByInference.RelativeOrientation.From_To),
-                        new RelatedLine(58, Framework.toDegrees(0.785398163397448), CurveByInference.RelativeOrientation.From_From),
-                        //new RelatedLine(59, Framework.toDegrees(2.35619449019234), CurveByInference.RelativeOrientation.From_From)
+                        new RelatedLine(37, 45, 89.9549529763904, CurveByInference.RelativeOrientation.From_To),
+                        new RelatedLine(41, -135, 90.0450470236096, CurveByInference.RelativeOrientation.From_From),
+                        new RelatedLine(57, -135, 90.0450470236096, CurveByInference.RelativeOrientation.From_To),
+                        new RelatedLine(58, 45, 89.9549529763904, CurveByInference.RelativeOrientation.From_From)
                     }}};
 
             Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
         }
 
         #endregion
+
+        #region parallel curve
+
+        [TestMethod]
+        public void Parallel()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 132 and Objectid <> 134");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { 
+                 new InferredCurve(132, "test", new List<RelatedCurve>() {
+                      new RelatedCurve(131, 707.106758, 6, CurveByInference.RelativeOrientation.From_To)     }){
+                      InferredRadius = 707.106758, InferredCenterpointID = 6, 
+                      ParallelCurves = new List<RelatedCurve>() {
+                            new RelatedCurve(141, 707.10653754906, 6, CurveByInference.RelativeOrientation.Parallel)          },
+                      TangentLines = new List<RelatedLine>() {
+
+                      }}};
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+
+        [TestMethod]
+        public void Parallel_withPositiveBlocker()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 143");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { 
+                new InferredCurve(143, "test", new List<RelatedCurve>() {
+                    new RelatedCurve(142, 707.106758, 7, CurveByInference.RelativeOrientation.From_To)     }){
+                    ParallelCurves = new List<RelatedCurve>() {
+                    },
+                    TangentLines = new List<RelatedLine>() {
+                        new RelatedLine(144, 45, 90.0409547336785, CurveByInference.RelativeOrientation.To_From),
+                        new RelatedLine(145, 45, 90.0409547336785, CurveByInference.RelativeOrientation.To_To)
+                    }}};
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+
+        [TestMethod]
+        public void Parallel_Reverse()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 132 and Objectid <> 148");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { 
+                 new InferredCurve(132, "test", new List<RelatedCurve>() {
+                      new RelatedCurve(131, 707.106758, 6, CurveByInference.RelativeOrientation.From_To)     }){
+                      InferredRadius = 707.106758, InferredCenterpointID = 6, 
+                      ParallelCurves = new List<RelatedCurve>() {
+                            new RelatedCurve(141, 707.10653754906, 6, CurveByInference.RelativeOrientation.Parallel)          },
+                      TangentLines = new List<RelatedLine>() {
+
+                      }}};
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+
+        [TestMethod]
+        public void Parallel_withPositiveBlocker_Reverse()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 149");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { 
+                new InferredCurve(149, "test", new List<RelatedCurve>() {
+                    new RelatedCurve(142, -707.106758, 7, CurveByInference.RelativeOrientation.To_To)     }){
+                    ParallelCurves = new List<RelatedCurve>() {
+                    },
+                    TangentLines = new List<RelatedLine>() {
+                        new RelatedLine(144, -135, 90.0409547336785, CurveByInference.RelativeOrientation.From_From),
+                        new RelatedLine(145, -135, 90.0409547336785, CurveByInference.RelativeOrientation.From_To)
+                    }}};
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+
+
+        [TestMethod]
+        public void Parallel_withNegativeBlocker()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 151");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { 
+                 new InferredCurve(151, "test", new List<RelatedCurve>() {
+                      new RelatedCurve(150, 707.106758, 8, CurveByInference.RelativeOrientation.From_To)     }){
+                      ParallelCurves = new List<RelatedCurve>() {
+                      },
+                      TangentLines = new List<RelatedLine>() {
+                           new RelatedLine(152, 45, 90.0409548100173, CurveByInference.RelativeOrientation.To_From),
+                           new RelatedLine(153, 45, 90.0409548100173, CurveByInference.RelativeOrientation.To_To)
+                      }}};
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+
+        [TestMethod]
+        public void Parallel_withNegativeBlocker_Reverse()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 156");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { 
+               new InferredCurve(156, "test", new List<RelatedCurve>() {
+                  new RelatedCurve(150, -707.106758, 8, CurveByInference.RelativeOrientation.To_To)     }){
+                  ParallelCurves = new List<RelatedCurve>() {
+                  },
+                  TangentLines = new List<RelatedLine>() {
+                       new RelatedLine(152, -135, 90.0409548100173, CurveByInference.RelativeOrientation.From_From),
+                       new RelatedLine(153, -135, 90.0409548100173, CurveByInference.RelativeOrientation.From_To)
+                  }}};
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+
+        #endregion
+
+        [TestMethod]
+        public void StraightLineOverride1()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 169");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { };
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+
+        [TestMethod]
+        public void StraightLineOverride2()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 179");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { };
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+
+        [TestMethod]
+        public void StraightLineOverride3()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 184");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { };
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
+
+        [TestMethod]
+        public void StraightLineOverride4()
+        {
+            CurveByInference result = Framework.RunFeatureClassTest("TangentDevTests", "CenterPoint", "TangentLines", "Objectid = 187");
+
+            List<InferredCurve> expectedResults = new List<InferredCurve>() { };
+
+            Framework.AssertInferredCurvesAreEqual(expectedResults, result.Curves);
+        }
     }
 }
