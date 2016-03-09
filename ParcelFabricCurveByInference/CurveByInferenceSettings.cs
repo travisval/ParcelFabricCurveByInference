@@ -51,7 +51,7 @@ namespace ParcelFabricCurveByInference
         /// The number of time larger a overlapping straight line must be to be considered
         /// </summary>
         public double TangentOverlapScaleFactor = 3;
-        public int PerpendicularTolerance = 15;
+        public int PerpendicularTolerance = 45;
         public double MaxRadiusDifference = 0.5;
         
         public string RadiusFieldName { get; set; }
