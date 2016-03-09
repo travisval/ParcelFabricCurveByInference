@@ -52,8 +52,8 @@ namespace ParcelFabricCurveByInference
         public int GetHashCode(RelatedCurve obj)
         {
             if (compareOIDs)
-                return (int)(obj.ObjectID * obj.CenterpointID * obj.Radius);
-            return (int)(obj.CenterpointID * obj.Radius);
+                return (int)(obj.ObjectID * obj.CenterpointID * (int)(obj.Radius * 100));
+            return (int)(obj.CenterpointID * (int)(obj.Radius * 100));
         }
     }
 }

@@ -44,10 +44,10 @@ namespace ParcelFabricCurveByInference
         public int GetHashCode(RelatedLine obj)
         {
             if (DelataOnly)
-                return (int)(obj.DeltaAngle * 100000);
+                return (int)(obj.DeltaAngle * 10);
             if (compareOIDs)
-                return (int)((int)obj.Orientation * obj.ObjectID * obj.Angle);
-            return (int)(obj.Angle);
+                return ((int)obj.Orientation * obj.ObjectID * (int)(obj.Angle * 10));
+            return (int)(obj.Angle * 10);
         }
     }
 
