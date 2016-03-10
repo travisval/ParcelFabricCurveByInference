@@ -12,12 +12,20 @@ namespace ParcelFabricCurveByInference
     {
         private static CurveByInferenceSettings instance;
 
+        /// <summary>
+        /// Controls the visibility of the settings pane in the UI.  Should only be true if the setting file is found.
+        /// </summary>
         [XmlIgnore]
         public System.Windows.Visibility SettingVisibility { get { return DisplaySettings ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed; } }
-
+        /// <summary>
+        /// If set to false, will override the default behavior to display the settings pane in the UI if the settings file is found.
+        /// </summary>
         [XmlElement]
         public bool DisplaySettings { get; set; }
 
+        /// <summary>
+        /// The maximum deflection angle in a tangent curve before the curve is ignored.  Also used to test parallel curves to make sure that they are actually parallel to the current feature. 
+        /// </summary>
         [XmlElement]
         public double AngleToleranceTangentCompareInDegrees { get; set; }
 

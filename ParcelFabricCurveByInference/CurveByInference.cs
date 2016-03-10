@@ -273,10 +273,15 @@ namespace ParcelFabricCurveByInference
                     IGeometry pGeom = pLineFeat.ShapeCopy;
                     ISegmentCollection pSegColl = pGeom as ISegmentCollection;
                     ISegment pSeg = null;
-                    if (pSegColl.SegmentCount == 1)
+                    if (pSegColl != null && pSegColl.SegmentCount == 1)
+                    {
                         pSeg = pSegColl.get_Segment(0);
+                    }
                     else
                     {
+                        if (pSegColl == null)
+                            messageBox.Show(String.Format("The shape for objectid {0} could not be converted to a segement collection.", pLineFeat.OID));
+
                         //todo: but for now, only deals with single segment short segments
                         Marshal.ReleaseComObject(pLineFeat);
                         continue;
@@ -781,27 +786,46 @@ namespace ParcelFabricCurveByInference
                 if (!progressor.Continue())
                     return;
                 m_pQF.WhereClause = String.Format("{0} IN ({1})", pFabricLinesFC.OIDFieldName, String.Join(",", (from oid in curvesSlice.Keys select oid.ToString()).ToArray()));
-                UpdateCircularArcValues((ITable)pFabricLinesFC, m_pQF, bIsUnVersioned, curvesSlice, progressor, MaxSequenceCache);
+                UpdateCircularArcValues(pFabricLinesFC, m_pQF, bIsUnVersioned, curvesSlice, progressor, MaxSequenceCache);
             }
         }
 
-        private bool UpdateCircularArcValues(ITable LineTable, IQueryFilter QueryFilter, bool Unversioned, IDictionary<int, InferredCurve> CurveLookup, myProgessor progressor, Dictionary<int, int> MaxSequenceCache)
+        private bool UpdateCircularArcValues(IFeatureClass LineTable, IQueryFilter QueryFilter, bool Unversioned, IDictionary<int, InferredCurve> CurveLookup, myProgessor progressor, Dictionary<int, int> MaxSequenceCache)
         {
-            IRow pLineFeat = null;
-            IRowBuffer buffer = null;
-            ICursor pLineCurs = null;
-            ICursor pRadialCur = null;
-            ICursor maxCursor = null;
+            IFeature pLineFeat = null;
+            IFeatureBuffer buffer = null;
+            IFeatureCursor pLineCurs = null;
+            IFeatureCursor pRadialCur = null;
+            IFeatureCursor maxCursor = null;
             IDataStatistics dataStatistics = null;
+
+            IGeometryFactory3 geometryFactory = new GeometryEnvironmentClass();
+            IGeometry geometry = new PolylineClass();
+            geometryFactory.CreateEmptyGeometryByType(LineTable.ShapeType, out geometry);
+
+            IGeometryDef geometryDef = LineTable.Fields.get_Field(LineTable.FindField(LineTable.ShapeFieldName)).GeometryDef;
+
+            if (geometryDef.HasZ)
+            {
+                IZAware zAware = (IZAware)(geometry);
+                zAware.ZAware = true;
+            }
+            if (geometryDef.HasM)
+            {
+                IMAware mAware = (IMAware)(geometry);
+                mAware.MAware = true;
+            }
+
+
             try
             {
-                CurveByInferenceSettings.FieldPositions positions = new CurveByInferenceSettings.FieldPositions(LineTable);
+                CurveByInferenceSettings.FieldPositions positions = new CurveByInferenceSettings.FieldPositions((ITable)LineTable);
 
-                buffer = LineTable.CreateRowBuffer();
+                buffer = LineTable.CreateFeatureBuffer();
                 pLineCurs = LineTable.Update(QueryFilter, false);
                 pRadialCur = LineTable.Insert(false);
 
-                while ((pLineFeat = pLineCurs.NextRow()) != null)
+                while ((pLineFeat = pLineCurs.NextFeature()) != null)
                 {
                     //loop through all of the given lines, and update centerpoint ids, radius, and arc length values
                     if (!progressor.Continue())
@@ -826,7 +850,7 @@ namespace ParcelFabricCurveByInference
                     }
 
                     if (Unversioned)
-                        pLineCurs.UpdateRow(pLineFeat);
+                        pLineCurs.UpdateFeature(pLineFeat);
                     else
                         pLineFeat.Store();
 
@@ -838,14 +862,14 @@ namespace ParcelFabricCurveByInference
                     }
                     else
                     {
-                        maxCursor = (ICursor)LineTable.Search(new QueryFilter() {
+                        maxCursor = LineTable.Search(new QueryFilter() {
                             SubFields = String.Format("{0}, {1}, {2}", LineTable.OIDFieldName, CurveByInferenceSettings.Instance.SequenceFieldName, CurveByInferenceSettings.Instance.ParcelIDFieldName),
                             WhereClause = String.Format("{0} = {1}", CurveByInferenceSettings.Instance.ParcelIDFieldName, curveInfo.Parcel) }, true);
 
                         int seqenceIdx = maxCursor.Fields.FindField(CurveByInferenceSettings.Instance.SequenceFieldName);
 
                         IRow maxFeat = null;
-                        while ((maxFeat = maxCursor.NextRow()) != null)
+                        while ((maxFeat = maxCursor.NextFeature()) != null)
                         {
                             maxSequence = Math.Max((int)maxFeat.get_Value(seqenceIdx), maxSequence);
                             Marshal.ReleaseComObject(maxFeat);
@@ -884,6 +908,7 @@ namespace ParcelFabricCurveByInference
                         buffer.set_Value(positions.LineParametersFieldIdx, 0);
                         buffer.set_Value(positions.DensifyTypeIdx, 0);
                         buffer.set_Value(positions.SystemStartDateFieldIdx, pLineFeat.get_Value(positions.SystemStartDateFieldIdx));
+                        buffer.Shape = geometry;
 
                         if (i == 0) // startpoing
                         {
@@ -896,7 +921,7 @@ namespace ParcelFabricCurveByInference
                             buffer.set_Value(positions.BearingFieldIdx, perpendicular - halfdelta);
                         }
 
-                        pRadialCur.InsertRow(buffer);
+                        pRadialCur.InsertFeature(buffer);
                     }
 
                     MaxSequenceCache[curveInfo.Parcel] = maxSequence; 
@@ -918,6 +943,9 @@ namespace ParcelFabricCurveByInference
 
                 if(dataStatistics != null) Marshal.ReleaseComObject(dataStatistics);
                 if (maxCursor != null) Marshal.ReleaseComObject(maxCursor);
+
+                if (geometry != null) Marshal.FinalReleaseComObject(geometry);
+                if (geometryFactory != null) Marshal.FinalReleaseComObject(geometryFactory);
             }
         }
         #endregion
@@ -1591,8 +1619,6 @@ namespace ParcelFabricCurveByInference
                 {
 
                     double inferredRadius = foundRadius * dUnitSignChange;
-
-                    //string sHarvestedCurveInfo = foundFeature.OID.ToString() + "," + inferredRadius.ToString("#.000") + "," + foundCentriodID.ToString() + "," + "t";
                     CurveInfoFromNeighbours.Add(new RelatedCurve(foundFeature.OID, inferredRadius, foundCentriodID.Value, iRelativeOrientation));
                 }
                 Marshal.ReleaseComObject(foundFeature);
@@ -1603,7 +1629,7 @@ namespace ParcelFabricCurveByInference
                 CurveInfoFromNeighbours.Clear(); //open to logic change to be less conservative
 
             //Original source didn't clear the list before, returing all the found records by reference.
-            //calling procedure didn't do anything with those features though, only consumed the features is true was returned
+            //calling procedure didn't do anything with those features though, only consumed the features if true was returned
 
             return CurveInfoFromNeighbours;
         }
